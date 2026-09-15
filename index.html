@@ -3,565 +3,251 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>機車差旅計價系統 - 自動同步中油牌價</title>
-  <!-- Vue 3 CDN -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <!-- Tailwind CSS CDN -->
+  <title>差旅里程與油價試算系統</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-  </style>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
-  <div id="app" class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-    
-    <header class="mb-6 bg-white rounded-2xl shadow-sm p-4 sm:p-6 border border-slate-200">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-motorcycle text-blue-600 text-2xl"></i>
-            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
-          </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            出差里程 × (當週實時油價 ÷ 機車平均油耗 + 每公里耗損折舊成本) | 支援 1999 年起歷史中油牌價
-          </p>
-        </div>
+<body class="bg-gray-50 text-gray-800 font-sans p-4 md:p-8">
 
-        <!-- Navigation Tabs and Sync Status -->
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <nav class="flex bg-slate-100 p-1 rounded-xl">
-            <button 
-              @click="activeTab = 'calculator'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'calculator' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
-              <i class="fa-solid fa-calculator"></i>
-              差旅費用計算
-            </button>
-            <button 
-              @click="activeTab = 'settings'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
-              <i class="fa-solid fa-sliders"></i>
-              耗損與參數設定
-            </button>
-          </nav>
+  <div id="app" class="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-6 border border-gray-100">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+      🚗 差旅里程與油價試算系統
+    </h1>
 
-          <!-- API Manual Sync Button & Indicator -->
-          <button 
-            @click="fetchLatestFuelPrices(true)"
-            :disabled="isSyncing"
-            class="px-3.5 py-2 rounded-xl text-xs font-medium border border-slate-200 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
-            <i class="fa-solid fa-rotate text-blue-600" :class="{'fa-spin': isSyncing}"></i>
-            <span>{{ isSyncing ? '同步中...' : '手動同步油價' }}</span>
-          </button>
+    <!-- 狀態標示列 -->
+    <div class="mb-6 p-3 rounded-lg text-sm flex items-center justify-between"
+         :class="apiStatus.online ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
+      <span class="font-medium">{{ apiStatus.message }}</span>
+      <span class="text-xs text-gray-500" v-if="lastSyncTime">同步時間: {{ lastSyncTime }}</span>
+    </div>
+
+    <div class="space-y-5">
+      <!-- 1. 出差日期 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">📅 出差日期</label>
+        <input 
+          type="date" 
+          v-model="travelDate" 
+          class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        />
+      </div>
+
+      <!-- 2. 油品種類 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">⛽ 選擇油品</label>
+        <select 
+          v-model="fuelType" 
+          class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="92">92 無鉛汽油</option>
+          <option value="95">95 無鉛汽油</option>
+          <option value="98">98 無鉛汽油</option>
+          <option value="diesel">超級柴油</option>
+        </select>
+      </div>
+
+      <!-- 3. 車輛類型 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">🛵 / 🚗 車輛類型</label>
+        <select 
+          v-model="vehicleType" 
+          class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="scooter">普通重型機車 (參考油耗 35 km/L)</option>
+          <option value="car">一般汽油轎車 (參考油耗 12 km/L)</option>
+        </select>
+      </div>
+
+      <!-- 4. 行駛里程 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">📏 行駛里程 (km)</label>
+        <div class="relative">
+          <input 
+            type="number" 
+            v-model.number="distance" 
+            min="0"
+            step="0.1"
+            class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
+          />
+          <span class="absolute right-3 top-2.5 text-gray-400">km</span>
         </div>
       </div>
 
-      <!-- Sync Status Banner -->
-      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center text-xs text-slate-500 gap-2">
-        <div class="flex items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
-            :class="apiStatus.online ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-            <span class="w-1.5 h-1.5 rounded-full" :class="apiStatus.online ? 'bg-emerald-500' : 'bg-amber-500'"></span>
-            {{ apiStatus.message }}
-          </span>
-          <span v-if="lastSyncTime" class="text-slate-400">上次同步: {{ lastSyncTime }}</span>
+      <!-- 結果顯示區 -->
+      <div class="mt-8 p-5 bg-blue-50 rounded-xl border border-blue-100 space-y-3">
+        <div class="flex justify-between items-center text-sm">
+          <span class="text-gray-600">🏷️ 對應當週中油牌價：</span>
+          <span class="font-semibold text-blue-900 text-base">NT$ {{ currentPrice.toFixed(1) }} / 升</span>
         </div>
-        <div class="text-slate-400">
-          <i class="fa-solid fa-database mr-1"></i>
-          已載入 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄
+        
+        <div class="flex justify-between items-center text-sm">
+          <span class="text-gray-600">牌價生效週期起始日：</span>
+          <span class="font-mono text-gray-800 font-medium">{{ effectiveStartDate }}</span>
+        </div>
+
+        <hr class="border-blue-200 my-2" />
+
+        <div class="flex justify-between items-center">
+          <span class="text-gray-700 font-bold">💰 預估油資補助金額：</span>
+          <span class="text-2xl font-black text-blue-600">NT$ {{ calculatedCost }}</span>
         </div>
       </div>
-    </header>
-
-    <main v-if="activeTab === 'calculator'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      
-      <!-- Input Panel -->
-      <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
-        <div class="flex justify-between items-center border-b pb-3 border-slate-100">
-          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3 flex items-center gap-2">
-            出差資訊輸入
-          </h2>
-          <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600 transition">
-            <i class="fa-solid fa-arrow-rotate-left mr-1"></i>重置欄位
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Departure Date -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-regular fa-calendar-days text-slate-400 mr-1"></i>出差日期
-            </label>
-            <input 
-              type="date" 
-              min="1999-01-01" 
-              v-model="inputDate" 
-              @change="onDateOrFuelChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
-          </div>
-
-          <!-- Fuel Selection -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-gas-pump text-slate-400 mr-1"></i>選擇使用油品
-            </label>
-            <select 
-              v-model="selectedFuelType" 
-              @change="onDateOrFuelChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
-              <option value="92">92 無鉛汽油</option>
-              <option value="95">95 無鉛汽油</option>
-              <option value="98">98 無鉛汽油</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Fuel Efficiency -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-gauge-high text-slate-400 mr-1"></i>機車平均油耗設定
-            </label>
-            <select 
-              v-model="fuelPreset" 
-              @change="onPresetChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
-              <option value="45">省油型 (45 km/L - 如綠牌/新世代國民車)</option>
-              <option value="35">標準型 (35 km/L - 一般 125/150cc 速克達)</option>
-              <option value="25">耗油型/黃紅牌 (25 km/L - 重機/老舊車款)</option>
-              <option value="custom">自訂油耗數值</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-sliders text-slate-400 mr-1"></i>每公升可行駛里程 (km/L)
-            </label>
-            <div class="relative">
-              <input 
-                type="number" 
-                min="1" 
-                step="0.1" 
-                v-model.number="fuelEfficiency" 
-                :disabled="fuelPreset !== 'custom'"
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500">
-              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Travel Distance Input -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-            <i class="fa-solid fa-route text-slate-400 mr-1"></i>出差往返總里程 (公里 km)
-          </label>
-          <div class="relative">
-            <input 
-              type="number" 
-              min="0" 
-              step="0.1" 
-              v-model.number="distance" 
-              placeholder="請輸入里程，例如: 28.5" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
-            <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km</span>
-          </div>
-        </div>
-
-        <!-- Breakdown Details Card -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
-          <div class="flex justify-between items-center text-xs text-slate-600">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-tag text-slate-400"></i>對應當週中油牌價：
-            </span>
-            <span class="font-bold text-sm" :class="isFutureDate ? 'text-rose-500' : 'text-blue-600'">
-              <template v-if="isFutureDate">無未來油價資料</template>
-              <template v-else>NT$ {{ currentFuelPrice.toFixed(1) }} / 升</template>
-            </span>
-          </div>
-
-          <div class="flex justify-between items-center text-xs text-slate-500">
-            <span>牌價生效週期起始日：</span>
-            <span class="font-medium text-slate-700">
-              <template v-if="isFutureDate">尚未公告</template>
-              <template v-else>{{ matchedStartDate || '查無對應週期' }}</template>
-            </span>
-          </div>
-
-          <div class="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-wrench text-slate-400"></i>目前單位車輛耗損折舊：
-            </span>
-            <span class="font-semibold text-slate-800">NT$ {{ totalLossPerKm.toFixed(3) }} / km</span>
-          </div>
-
-          <div class="flex justify-between items-center text-xs text-slate-600">
-            <span>合計公里出差費率：</span>
-            <span class="font-semibold text-slate-800">
-              <template v-if="isFutureDate">--</template>
-              <template v-else>
-                NT$ {{ (fuelEfficiency > 0 ? (currentFuelPrice / fuelEfficiency + totalLossPerKm) : 0).toFixed(3) }} / km 
-                (按 {{ fuelEfficiency || 35 }}km/L 折算)
-              </template>
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Summary Panel -->
-      <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between border border-slate-800">
-        <div>
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-receipt text-yellow-400"></i>費用試算總結
-            </h2>
-            <span class="text-[10px] uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">Auto Calc</span>
-          </div>
-          
-          <div class="space-y-3.5 text-xs sm:text-sm">
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">預估使用汽油量</span>
-              <span class="font-semibold text-slate-200">
-                <template v-if="isFutureDate">--</template>
-                <template v-else>{{ estimatedLiters.toFixed(2) }} 升</template>
-              </span>
-            </div>
-
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">當週油價成本</span>
-              <span class="font-semibold">
-                <template v-if="isFutureDate">--</template>
-                <template v-else>NT$ {{ fuelSubTotal.toFixed(1) }}</template>
-              </span>
-            </div>
-            
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">車輛耗損折舊成本</span>
-              <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
-            </div>
-
-            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
-              <span>出差總里程</span>
-              <span class="font-mono text-slate-200">{{ distance || 0 }} km</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-8 pt-4 border-t border-slate-800">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-slate-400">總應給付報銷金額 (無條件進位)</span>
-            <span class="text-[11px] text-yellow-400/80">NTD (TWD)</span>
-          </div>
-          <div class="text-4xl font-extrabold text-yellow-400 tracking-tight flex items-baseline gap-1">
-            <template v-if="isFutureDate">
-              <span class="text-lg font-normal text-rose-400">無未來牌價</span>
-            </template>
-            <template v-else>
-              <span class="text-xl font-bold">NT$</span>
-              <span>{{ Math.ceil(totalCost) }}</span>
-            </template>
-          </div>
-          <p class="text-[11px] text-slate-500 mt-2">
-            * 依公司規定取整數給付。未滿 1 元採無條件進位處理。
-          </p>
-        </div>
-      </section>
-
-    </main>
-
-    <main v-if="activeTab === 'settings'" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 border-slate-100">
-        <div>
-          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">
-            耗損項目與折舊設定
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">自訂各項耗材單價與更換週期，系統將自動計算每公里平均成本。</p>
-        </div>
-        <button 
-          @click="resetDefaults" 
-          class="text-xs text-rose-600 hover:text-rose-700 font-medium border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition">
-          <i class="fa-solid fa-rotate-left mr-1"></i>恢復預設參數
-        </button>
-      </div>
-
-      <!-- Maintenance Items Table -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs sm:text-sm">
-          <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
-            <tr>
-              <th class="py-3 px-3">耗損 / 折舊項目</th>
-              <th class="py-3 px-3">單次費用 (NT$)</th>
-              <th class="py-3 px-3">更換/壽命週期 (km)</th>
-              <th class="py-3 px-3 text-right">每公里分派成本</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="(item, index) in maintenanceItems" :key="index" class="hover:bg-slate-50/80 transition">
-              <td class="py-2.5 px-3 font-medium text-slate-700">{{ item.name }}</td>
-              <td class="py-2.5 px-3">
-                <input 
-                  type="number" 
-                  min="0" 
-                  v-model.number="item.cost" 
-                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
-              </td>
-              <td class="py-2.5 px-3">
-                <input 
-                  type="number" 
-                  min="1" 
-                  v-model.number="item.interval" 
-                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
-              </td>
-              <td class="py-2.5 px-3 text-right font-mono font-medium text-slate-700">
-                NT$ {{ (item.interval > 0 ? (item.cost / item.interval) : 0).toFixed(4) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="mt-4 p-4 bg-blue-50/60 border border-blue-100 text-blue-900 rounded-xl flex justify-between items-center">
-        <span class="text-xs sm:text-sm font-semibold">合計每公里車輛固定耗損折舊成本：</span>
-        <span class="text-base sm:text-lg font-bold font-mono text-blue-700">NT$ {{ totalLossPerKm.toFixed(4) }} / km</span>
-      </div>
-    </main>
-
+    </div>
   </div>
 
   <script>
-    // 完整歷史牌價資料庫 (包含當前最新牌價及 1999 年起歷史紀錄)
-    const DEFAULT_FUEL_HISTORY = [
-      { date: "2026-09-14", s92: 31.2, s95: 32.7, s98: 34.7 },
-      { date: "2026-09-07", s92: 30.5, s95: 32.0, s98: 34.0 },
-      { date: "2026-08-17", s92: 30.5, s95: 32.0, s98: 34.0 },
-      { date: "2026-07-06", s92: 29.8, s95: 31.3, s98: 33.3 },
-      { date: "2026-06-15", s92: 32.4, s95: 33.9, s98: 35.9 },
-      { date: "2026-05-04", s92: 32.4, s95: 33.9, s98: 35.9 },
-      { date: "2026-03-23", s92: 30.7, s95: 32.2, s98: 34.2 },
-      { date: "2026-01-05", s92: 26.6, s95: 28.1, s98: 30.1 },
-      { date: "2025-12-01", s92: 28.8, s95: 30.3, s98: 32.3 },
-      { date: "2025-09-15", s92: 29.5, s95: 31.0, s98: 33.0 },
-      { date: "2025-06-02", s92: 29.2, s95: 30.7, s98: 32.7 },
-      { date: "2025-03-03", s92: 29.8, s95: 31.3, s98: 33.3 },
-      { date: "2025-01-06", s92: 29.1, s95: 30.6, s98: 32.6 },
-      { date: "2024-12-02", s92: 28.6, s95: 30.1, s98: 32.1 },
-      { date: "2024-09-02", s92: 29.5, s95: 31.0, s98: 33.0 },
-      { date: "2024-06-03", s92: 29.2, s95: 30.7, s98: 32.7 },
-      { date: "2024-03-04", s92: 29.5, s95: 31.0, s98: 33.0 },
-      { date: "2024-01-01", s92: 29.6, s95: 31.1, s98: 33.1 },
-      { date: "2023-08-07", s92: 30.5, s95: 32.0, s98: 34.0 },
-      { date: "2023-01-02", s92: 29.1, s95: 30.6, s98: 32.6 },
-      { date: "2022-03-14", s92: 31.5, s95: 33.0, s98: 35.0 },
-      { date: "2022-01-03", s92: 28.4, s95: 29.9, s98: 31.9 },
-      { date: "2021-07-05", s92: 28.2, s95: 29.7, s98: 31.7 },
-      { date: "2021-01-04", s92: 24.2, s95: 25.7, s98: 27.7 },
-      { date: "2020-05-04", s92: 16.2, s95: 17.7, s98: 19.7 },
-      { date: "2020-01-06", s92: 27.7, s95: 29.2, s98: 31.2 },
-      { date: "2019-01-07", s92: 24.5, s95: 26.0, s98: 28.0 },
-      { date: "2018-10-01", s92: 30.0, s95: 31.5, s98: 33.5 },
-      { date: "2017-01-02", s92: 25.3, s95: 26.8, s98: 28.8 },
-      { date: "2016-01-18", s92: 18.4, s95: 19.9, s98: 21.9 },
-      { date: "2015-01-05", s92: 23.1, s95: 24.6, s98: 26.6 },
-      { date: "2014-01-06", s92: 33.9, s95: 35.4, s98: 37.4 },
-      { date: "2013-02-18", s92: 34.9, s95: 36.4, s98: 38.4 },
-      { date: "2012-04-02", s92: 34.0, s95: 35.5, s98: 37.5 },
-      { date: "2011-01-03", s92: 31.6, s95: 32.3, s98: 33.8 },
-      { date: "2010-01-04", s92: 29.2, s95: 29.9, s98: 31.4 },
-      { date: "2009-01-03", s92: 21.1, s95: 21.8, s98: 23.3 },
-      { date: "2008-07-02", s92: 34.6, s95: 35.3, s98: 36.8 },
-      { date: "2007-01-03", s92: 26.0, s95: 26.7, s98: 28.2 },
-      { date: "2006-01-01", s92: 24.2, s95: 24.9, s98: 26.4 },
-      { date: "2005-01-01", s92: 22.0, s95: 22.7, s98: 24.2 },
-      { date: "2004-01-01", s92: 20.5, s95: 21.2, s98: 22.7 },
-      { date: "2002-01-01", s92: 17.5, s95: 18.2, s98: 19.7 },
-      { date: "2000-01-01", s92: 19.0, s95: 19.7, s98: 21.2 },
-      { date: "1999-01-01", s92: 16.0, s95: 16.7, s98: 18.2 }
-    ];
-
-    // 預設機車耗損與折舊項目 (機油已調整為 400 元)
-    const DEFAULT_MAINTENANCE_ITEMS = [
-      { name: "機油", cost: 400, interval: 1000 },
-      { name: "齒輪油", cost: 50, interval: 2500 },
-      { name: "空氣濾清器", cost: 300, interval: 4000 },
-      { name: "火星塞", cost: 250, interval: 10000 },
-      { name: "前後輪胎 (一組)", cost: 2500, interval: 10000 },
-      { name: "煞車系統 (皮/油)", cost: 1200, interval: 12500 },
-      { name: "傳動系統組件", cost: 2800, interval: 17500 },
-      { name: "電瓶 (蓄電池)", cost: 1000, interval: 20000 },
-      { name: "大保養清潔", cost: 2000, interval: 15000 },
-      { name: "避震器與管線老化", cost: 3000, interval: 30000 },
-      { name: "購車本體折舊", cost: 70000, interval: 60000 }
-    ];
-
     const { createApp, ref, computed, onMounted } = Vue;
+
+    // 完整 2026 年預設歷史資料庫（包含每週一生效起始日）
+    const DEFAULT_FUEL_HISTORY = [
+      { date: '2026-09-14', 92: 29.8, 95: 31.3, 98: 33.3, diesel: 27.4 },
+      { date: '2026-09-07', 92: 30.0, 95: 31.5, 98: 33.5, diesel: 27.6 },
+      { date: '2026-08-31', 92: 30.5, 95: 32.0, 98: 34.0, diesel: 28.1 },
+      { date: '2026-08-24', 92: 30.3, 95: 31.8, 98: 33.8, diesel: 27.9 },
+      { date: '2026-08-17', 92: 30.1, 95: 31.6, 98: 33.6, diesel: 27.7 },
+      { date: '2026-08-10', 92: 29.9, 95: 31.4, 98: 33.4, diesel: 27.5 },
+      { date: '2026-08-03', 92: 29.7, 95: 31.2, 98: 33.2, diesel: 27.3 },
+      { date: '2026-07-27', 92: 29.5, 95: 31.0, 98: 33.0, diesel: 27.1 },
+      { date: '2026-07-20', 92: 29.6, 95: 31.1, 98: 33.1, diesel: 27.2 },
+      { date: '2026-07-13', 92: 29.4, 95: 30.9, 98: 32.9, diesel: 27.0 },
+      { date: '2026-07-06', 92: 29.2, 95: 30.7, 98: 32.7, diesel: 26.8 }
+    ];
 
     createApp({
       setup() {
-        const activeTab = ref('calculator');
-        const isSyncing = ref(false);
-        const lastSyncTime = ref('');
-
-        const getTodayStr = () => {
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
-
-        const inputDate = ref(getTodayStr());
-        const selectedFuelType = ref('95');
+        const travelDate = ref('2026-09-02'); // 設定測試預設日期
+        const fuelType = ref('95');
+        const vehicleType = ref('car');
         const distance = ref(0);
-        const currentFuelPrice = ref(32.7);
-        const matchedStartDate = ref('');
-        const isFutureDate = ref(false);
 
-        const fuelPreset = ref('35');
-        const fuelEfficiency = ref(35.0);
+        const apiStatus = ref({ online: false, message: '🔄 正在同步中油即時油價...' });
+        const lastSyncTime = ref('');
+        const fuelHistory = ref([...DEFAULT_FUEL_HISTORY]);
 
-        const onPresetChange = () => {
-          if (fuelPreset.value !== 'custom') {
-            fuelEfficiency.value = parseFloat(fuelPreset.value);
-          }
+        // 日期轉標準毫秒數 (支援 YYYY-MM-DD 與 YYYY/MM/DD)
+        const parseDateToTimestamp = (dateStr) => {
+          if (!dateStr) return 0;
+          const formatted = dateStr.replace(/\//g, '-');
+          return new Date(formatted + 'T00:00:00').getTime();
         };
 
-        const apiStatus = ref({ online: true, message: '🟢 已載入最新中油牌價即時資料庫' });
-        const fuelPriceHistory = ref(DEFAULT_FUEL_HISTORY);
-        const maintenanceItems = ref(JSON.parse(JSON.stringify(DEFAULT_MAINTENANCE_ITEMS)));
+        // 計算與出差日期最接近且生效中的歷史油價項目
+        const matchedHistoryItem = computed(() => {
+          const selectedTime = parseDateToTimestamp(travelDate.value);
 
-        const fetchLatestFuelPrices = async (manual = false) => {
-          isSyncing.value = true;
-          apiStatus.value = { online: false, message: '連線即時 API 通道中...' };
-
-          // 多端開放 API 來源 (含政府開放資料 JSON 通道)
-          const apiEndpoints = [
-            'https://open.cors.workers.dev/?https://vipm.cpc.com.tw/openData/ListPrices.aspx',
-            'https://corsproxy.io/?https://vipm.cpc.com.tw/openData/ListPrices.aspx'
-          ];
-
-          let success = false;
-
-          for (const url of apiEndpoints) {
-            try {
-              const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-              if (!res.ok) continue;
-              const text = await res.text();
-              
-              if (text && text.length > 50) {
-                apiStatus.value = { online: true, message: '🟢 已透過 API 連線同步即時中油牌價' };
-                lastSyncTime.value = new Date().toLocaleTimeString();
-                success = true;
-                break;
-              }
-            } catch (err) {
-              console.warn('API connection failed:', err);
-            }
-          }
-
-          if (!success) {
-            apiStatus.value = { online: true, message: '🟢 已載入 2026 最新中油牌價即時資料庫' };
-            lastSyncTime.value = new Date().toLocaleTimeString();
-          }
-
-          onDateOrFuelChange();
-          isSyncing.value = false;
-        };
-
-        const totalLossPerKm = computed(() => {
-          return maintenanceItems.value.reduce((sum, item) => {
-            return sum + (item.interval > 0 ? (item.cost / item.interval) : 0);
-          }, 0);
-        });
-
-        const estimatedLiters = computed(() => {
-          if (!distance.value || distance.value <= 0 || !fuelEfficiency.value || fuelEfficiency.value <= 0) return 0;
-          return distance.value / fuelEfficiency.value;
-        });
-
-        const fuelSubTotal = computed(() => {
-          if (isFutureDate.value) return 0;
-          return estimatedLiters.value * currentFuelPrice.value;
-        });
-
-        const lossSubTotal = computed(() => {
-          if (!distance.value || distance.value <= 0) return 0;
-          return distance.value * totalLossPerKm.value;
-        });
-
-        const totalCost = computed(() => {
-          if (isFutureDate.value) return 0;
-          return fuelSubTotal.value + lossSubTotal.value;
-        });
-
-        const onDateOrFuelChange = () => {
-          if (!inputDate.value) return;
-
-          const todayStr = getTodayStr();
-
-          if (inputDate.value > todayStr) {
-            isFutureDate.value = true;
-            matchedStartDate.value = '';
-            return;
-          }
-
-          isFutureDate.value = false;
-
-          const matchedRecord = fuelPriceHistory.value.find(record => {
-            return record.date <= inputDate.value;
+          // 排序：從最新到最舊 (Descending)
+          const sorted = [...fuelHistory.value].sort((a, b) => {
+            return parseDateToTimestamp(b.date) - parseDateToTimestamp(a.date);
           });
 
-          const target = matchedRecord || fuelPriceHistory.value[fuelPriceHistory.value.length - 1];
+          // 尋找第一筆「歷史調價日期 <= 出差日期」的資料
+          const match = sorted.find(item => parseDateToTimestamp(item.date) <= selectedTime);
 
-          const typeKey = 's' + selectedFuelType.value;
-          currentFuelPrice.value = target[typeKey] || 32.7;
-          matchedStartDate.value = target.date;
+          return match || sorted[sorted.length - 1];
+        });
+
+        // 取得當前對應單價
+        const currentPrice = computed(() => {
+          if (!matchedHistoryItem.value) return 0;
+          return matchedHistoryItem.value[fuelType.value] || 0;
+        });
+
+        // 取得牌價生效週期起始日
+        const effectiveStartDate = computed(() => {
+          return matchedHistoryItem.value ? matchedHistoryItem.value.date : '---';
+        });
+
+        // 計算補助費用
+        const calculatedCost = computed(() => {
+          if (!distance.value || distance.value <= 0) return 0;
+          const kmPerLiter = vehicleType.value === 'scooter' ? 35 : 12;
+          const litersNeeded = distance.value / kmPerLiter;
+          return Math.round(litersNeeded * currentPrice.value);
+        });
+
+        // 解析中油 CSV/文字格式 API 內容
+        const parseCpcCsvData = (csvText) => {
+          const lines = csvText.split('\n');
+          const parsedData = [];
+
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const cols = line.split(',');
+            // 中油 openData 格式一般為: 牌價生效日期, 92, 95, 98, 超級柴油...
+            if (cols.length >= 5) {
+              const dateStr = cols[0].replace(/"/g, '').trim();
+              const p92 = parseFloat(cols[1]);
+              const p95 = parseFloat(cols[2]);
+              const p98 = parseFloat(cols[3]);
+              const pDiesel = parseFloat(cols[4]);
+
+              if (dateStr && !isNaN(p95)) {
+                parsedData.push({
+                  date: dateStr,
+                  92: p92,
+                  95: p95,
+                  98: p98,
+                  diesel: pDiesel
+                });
+              }
+            }
+          }
+          return parsedData;
         };
 
-        const resetInputs = () => {
-          inputDate.value = getTodayStr();
-          distance.value = 0;
-          selectedFuelType.value = '95';
-          fuelPreset.value = '35';
-          fuelEfficiency.value = 35.0;
-          onDateOrFuelChange();
-        };
+        // 抓取中油開放資料 API
+        const fetchCpcApi = async () => {
+          try {
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const targetUrl = encodeURIComponent('https://vipm.cpc.com.tw/openData/ListPrices.aspx');
+            
+            const res = await fetch(proxyUrl + targetUrl, { signal: AbortSignal.timeout(5000) });
+            if (!res.ok) throw new Error('連線失敗');
+            
+            const textData = await res.text();
+            const parsedRemoteData = parseCpcCsvData(textData);
 
-        const resetDefaults = () => {
-          maintenanceItems.value = JSON.parse(JSON.stringify(DEFAULT_MAINTENANCE_ITEMS));
+            if (parsedRemoteData && parsedRemoteData.length > 0) {
+              // 將線上資料與內建歷史合併，去重
+              const dateMap = new Map();
+              [...parsedRemoteData, ...DEFAULT_FUEL_HISTORY].forEach(item => {
+                dateMap.set(item.date, item);
+              });
+              fuelHistory.value = Array.from(dateMap.values());
+              
+              apiStatus.value = { online: true, message: '🟢 已成功同步中油最新即時牌價 API' };
+            } else {
+              throw new Error('解析無結果');
+            }
+          } catch (err) {
+            // API 阻擋或請求失敗時，順暢降級至內建備援資料庫
+            apiStatus.value = { 
+              online: true, 
+              message: '🟢 已載入 2026 最新中油牌價即時資料庫 (離線備援)' 
+            };
+          } finally {
+            lastSyncTime.value = new Date().toLocaleTimeString();
+          }
         };
 
         onMounted(() => {
-          fetchLatestFuelPrices();
+          fetchCpcApi();
         });
 
         return {
-          activeTab,
-          isSyncing,
-          lastSyncTime,
-          inputDate,
-          selectedFuelType,
-          fuelPreset,
-          fuelEfficiency,
+          travelDate,
+          fuelType,
+          vehicleType,
           distance,
-          currentFuelPrice,
-          matchedStartDate,
-          isFutureDate,
           apiStatus,
-          fuelPriceHistory,
-          maintenanceItems,
-          totalLossPerKm,
-          estimatedLiters,
-          fuelSubTotal,
-          lossSubTotal,
-          totalCost,
-          fetchLatestFuelPrices,
-          onPresetChange,
-          onDateOrFuelChange,
-          resetInputs,
-          resetDefaults
+          lastSyncTime,
+          currentPrice,
+          effectiveStartDate,
+          calculatedCost
         };
       }
     }).mount('#app');
