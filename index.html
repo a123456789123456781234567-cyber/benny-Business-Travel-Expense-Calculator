@@ -72,7 +72,7 @@
         </div>
         <div class="text-slate-400">
           <i class="fa-solid fa-database mr-1"></i>
-          已載入 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄 (1999年至今)
+          已載入 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄
         </div>
       </div>
     </header>
@@ -334,7 +334,6 @@
   <script>
     // 內建歷史牌價資料庫 (預設與備援)
     const DEFAULT_FUEL_HISTORY = [
-      // 2026
       { date: "2026-09-14", s92: 31.2, s95: 32.7, s98: 34.7 },
       { date: "2026-09-07", s92: 30.5, s95: 32.0, s98: 34.0 },
       { date: "2026-08-17", s92: 30.5, s95: 32.0, s98: 34.0 },
@@ -343,55 +342,39 @@
       { date: "2026-05-04", s92: 32.4, s95: 33.9, s98: 35.9 },
       { date: "2026-03-23", s92: 30.7, s95: 32.2, s98: 34.2 },
       { date: "2026-01-05", s92: 26.6, s95: 28.1, s98: 30.1 },
-
-      // 2025
       { date: "2025-12-01", s92: 28.8, s95: 30.3, s98: 32.3 },
       { date: "2025-09-15", s92: 29.5, s95: 31.0, s98: 33.0 },
       { date: "2025-06-02", s92: 29.2, s95: 30.7, s98: 32.7 },
       { date: "2025-03-03", s92: 29.8, s95: 31.3, s98: 33.3 },
       { date: "2025-01-06", s92: 29.1, s95: 30.6, s98: 32.6 },
-
-      // 2024
       { date: "2024-12-02", s92: 28.6, s95: 30.1, s98: 32.1 },
       { date: "2024-09-02", s92: 29.5, s95: 31.0, s98: 33.0 },
       { date: "2024-06-03", s92: 29.2, s95: 30.7, s98: 32.7 },
       { date: "2024-03-04", s92: 29.5, s95: 31.0, s98: 33.0 },
       { date: "2024-01-01", s92: 29.6, s95: 31.1, s98: 33.1 },
-
-      // 2022 - 2023
       { date: "2023-08-07", s92: 30.5, s95: 32.0, s98: 34.0 },
       { date: "2023-01-02", s92: 29.1, s95: 30.6, s98: 32.6 },
       { date: "2022-03-14", s92: 31.5, s95: 33.0, s98: 35.0 },
       { date: "2022-01-03", s92: 28.4, s95: 29.9, s98: 31.9 },
-
-      // 2020 - 2021
       { date: "2021-07-05", s92: 28.2, s95: 29.7, s98: 31.7 },
       { date: "2021-01-04", s92: 24.2, s95: 25.7, s98: 27.7 },
       { date: "2020-05-04", s92: 16.2, s95: 17.7, s98: 19.7 },
       { date: "2020-01-06", s92: 27.7, s95: 29.2, s98: 31.2 },
-
-      // 2015 - 2019
       { date: "2019-01-07", s92: 24.5, s95: 26.0, s98: 28.0 },
       { date: "2018-10-01", s92: 30.0, s95: 31.5, s98: 33.5 },
       { date: "2017-01-02", s92: 25.3, s95: 26.8, s98: 28.8 },
       { date: "2016-01-18", s92: 18.4, s95: 19.9, s98: 21.9 },
       { date: "2015-01-05", s92: 23.1, s95: 24.6, s98: 26.6 },
-
-      // 2010 - 2014
       { date: "2014-01-06", s92: 33.9, s95: 35.4, s98: 37.4 },
       { date: "2013-02-18", s92: 34.9, s95: 36.4, s98: 38.4 },
       { date: "2012-04-02", s92: 34.0, s95: 35.5, s98: 37.5 },
       { date: "2011-01-03", s92: 31.6, s95: 32.3, s98: 33.8 },
       { date: "2010-01-04", s92: 29.2, s95: 29.9, s98: 31.4 },
-
-      // 2005 - 2009
       { date: "2009-01-03", s92: 21.1, s95: 21.8, s98: 23.3 },
       { date: "2008-07-02", s92: 34.6, s95: 35.3, s98: 36.8 },
       { date: "2007-01-03", s92: 26.0, s95: 26.7, s98: 28.2 },
       { date: "2006-01-01", s92: 24.2, s95: 24.9, s98: 26.4 },
       { date: "2005-01-01", s92: 22.0, s95: 22.7, s98: 24.2 },
-
-      // 1999 - 2004
       { date: "2004-01-01", s92: 20.5, s95: 21.2, s98: 22.7 },
       { date: "2002-01-01", s92: 17.5, s95: 18.2, s98: 19.7 },
       { date: "2000-01-01", s92: 19.0, s95: 19.7, s98: 21.2 },
@@ -445,45 +428,88 @@
           }
         };
 
-        const apiStatus = ref({ online: false, message: '初始化中...' });
+        const apiStatus = ref({ online: false, message: '連線中...' });
         const fuelPriceHistory = ref(DEFAULT_FUEL_HISTORY);
         const maintenanceItems = ref(JSON.parse(JSON.stringify(DEFAULT_MAINTENANCE_ITEMS)));
 
-        // 透過 CORS Proxy 繞過瀏覽器跨網域存取限制
+        // 解析中油 CSV/Text 回傳格式
+        const parseCPCData = (text) => {
+          const lines = text.split('\n');
+          const result = [];
+          
+          for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+            
+            // 匹配日期與各油品價格
+            const parts = line.split(',');
+            if (parts.length >= 4) {
+              const rawDate = parts[0].replace(/["']/g, '').trim();
+              const formattedDate = rawDate.replace(/\//g, '-');
+              
+              if (formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const s92 = parseFloat(parts[1]) || 0;
+                const s95 = parseFloat(parts[2]) || 0;
+                const s98 = parseFloat(parts[3]) || 0;
+                if (s92 > 0) {
+                  result.push({ date: formattedDate, s92, s95, s98 });
+                }
+              }
+            }
+          }
+          
+          // 依日期降序排列
+          return result.sort((a, b) => b.date.localeCompare(a.date));
+        };
+
         const fetchLatestFuelPrices = async (manual = false) => {
           isSyncing.value = true;
-          apiStatus.value = { online: false, message: '連線代理伺服器同步中油 API 中...' };
+          apiStatus.value = { online: false, message: '連線 API 中...' };
 
-          // 使用多組免費跨域代理服務作為輪替備援
-          const targetUrl = 'https://vipm.cpc.com.tw/openData/ListPrices.aspx';
+          const cpcUrl = 'https://vipm.cpc.com.tw/openData/ListPrices.aspx';
           const proxyUrls = [
-            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+            `https://api.allorigins.win/get?url=${encodeURIComponent(cpcUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(cpcUrl)}`
           ];
 
           let success = false;
 
           for (const url of proxyUrls) {
             try {
-              const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-              if (response.ok) {
-                const data = await response.json();
-                if (Array.isArray(data) && data.length > 0) {
-                  fuelPriceHistory.value = data;
-                  apiStatus.value = { online: true, message: '🟢 已透過 CORS Proxy 即時同步中油 API' };
-                  lastSyncTime.value = new Date().toLocaleTimeString();
-                  onDateOrFuelChange();
-                  success = true;
-                  break;
-                }
+              const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+              if (!res.ok) continue;
+
+              let text = '';
+              if (url.includes('allorigins')) {
+                const json = await res.json();
+                text = json.contents || '';
+              } else {
+                text = await res.text();
+              }
+
+              // 嘗試用 JSON 解析或 CSV 解析
+              let parsed = [];
+              try {
+                parsed = JSON.parse(text);
+              } catch (e) {
+                parsed = parseCPCData(text);
+              }
+
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                fuelPriceHistory.value = parsed;
+                apiStatus.value = { online: true, message: '🟢 已成功同步中油最新牌價 API' };
+                lastSyncTime.value = new Date().toLocaleTimeString();
+                onDateOrFuelChange();
+                success = true;
+                break;
               }
             } catch (err) {
-              console.warn('Proxy 嘗試失敗:', url, err);
+              console.warn('Proxy 連線嘗試失敗:', err);
             }
           }
 
           if (!success) {
-            apiStatus.value = { online: false, message: '🟡 代理連線逾時，已自動切換至內建 1999-2026 歷史資料庫' };
+            apiStatus.value = { online: false, message: '🟡 API 暫時無法連線，已切換至內建歷史資料庫' };
             lastSyncTime.value = new Date().toLocaleTimeString();
             onDateOrFuelChange();
           }
