@@ -13,15 +13,8 @@
 
   <div id="app" class="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-6 border border-gray-100">
     <h1 class="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-      🚗 差旅里程與油價試算系統
+      🚗 差旅里程與油資試算
     </h1>
-
-    <!-- 狀態標示列 -->
-    <div class="mb-6 p-3 rounded-lg text-sm flex items-center justify-between"
-         :class="apiStatus.online ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-      <span class="font-medium">{{ apiStatus.message }}</span>
-      <span class="text-xs text-gray-500" v-if="lastSyncTime">同步時間: {{ lastSyncTime }}</span>
-    </div>
 
     <div class="space-y-5">
       <!-- 1. 出差日期 -->
@@ -34,18 +27,20 @@
         />
       </div>
 
-      <!-- 2. 油品種類 -->
+      <!-- 2. 手動輸入當週油價 -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">⛽ 選擇油品</label>
-        <select 
-          v-model="fuelType" 
-          class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="92">92 無鉛汽油</option>
-          <option value="95">95 無鉛汽油</option>
-          <option value="98">98 無鉛汽油</option>
-          <option value="diesel">超級柴油</option>
-        </select>
+        <label class="block text-sm font-medium text-gray-700 mb-1">⛽ 當週中油每升油價 (元)</label>
+        <div class="relative">
+          <input 
+            type="number" 
+            v-model.number="fuelPrice" 
+            min="0"
+            step="0.1"
+            placeholder="請輸入油價，例如：32.0"
+            class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
+          />
+          <span class="absolute right-3 top-2.5 text-gray-400">元/升</span>
+        </div>
       </div>
 
       <!-- 3. 車輛類型 -->
@@ -69,6 +64,7 @@
             v-model.number="distance" 
             min="0"
             step="0.1"
+            placeholder="請輸入里程數"
             class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none pr-12"
           />
           <span class="absolute right-3 top-2.5 text-gray-400">km</span>
@@ -78,13 +74,13 @@
       <!-- 結果顯示區 -->
       <div class="mt-8 p-5 bg-blue-50 rounded-xl border border-blue-100 space-y-3">
         <div class="flex justify-between items-center text-sm">
-          <span class="text-gray-600">🏷️ 對應當週中油牌價：</span>
-          <span class="font-semibold text-blue-900 text-base">NT$ {{ currentPrice.toFixed(1) }} / 升</span>
+          <span class="text-gray-600">📅 出差日期：</span>
+          <span class="font-mono text-gray-800 font-medium">{{ travelDate || '未設定' }}</span>
         </div>
-        
+
         <div class="flex justify-between items-center text-sm">
-          <span class="text-gray-600">牌價生效週期起始日：</span>
-          <span class="font-mono text-gray-800 font-medium">{{ effectiveStartDate }}</span>
+          <span class="text-gray-600">🏷️ 輸入每升牌價：</span>
+          <span class="font-semibold text-blue-900 text-base">NT$ {{ (fuelPrice || 0).toFixed(1) }} / 升</span>
         </div>
 
         <hr class="border-blue-200 my-2" />
@@ -98,155 +94,35 @@
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted } = Vue;
-
-    // 完整 2026 年預設歷史資料庫（包含每週一生效起始日）
-    const DEFAULT_FUEL_HISTORY = [
-      { date: '2026-09-14', 92: 29.8, 95: 31.3, 98: 33.3, diesel: 27.4 },
-      { date: '2026-09-07', 92: 30.0, 95: 31.5, 98: 33.5, diesel: 27.6 },
-      { date: '2026-08-31', 92: 30.5, 95: 32.0, 98: 34.0, diesel: 28.1 },
-      { date: '2026-08-24', 92: 30.3, 95: 31.8, 98: 33.8, diesel: 27.9 },
-      { date: '2026-08-17', 92: 30.1, 95: 31.6, 98: 33.6, diesel: 27.7 },
-      { date: '2026-08-10', 92: 29.9, 95: 31.4, 98: 33.4, diesel: 27.5 },
-      { date: '2026-08-03', 92: 29.7, 95: 31.2, 98: 33.2, diesel: 27.3 },
-      { date: '2026-07-27', 92: 29.5, 95: 31.0, 98: 33.0, diesel: 27.1 },
-      { date: '2026-07-20', 92: 29.6, 95: 31.1, 98: 33.1, diesel: 27.2 },
-      { date: '2026-07-13', 92: 29.4, 95: 30.9, 98: 32.9, diesel: 27.0 },
-      { date: '2026-07-06', 92: 29.2, 95: 30.7, 98: 32.7, diesel: 26.8 }
-    ];
+    const { createApp, ref, computed } = Vue;
 
     createApp({
       setup() {
-        const travelDate = ref('2026-09-02'); // 設定測試預設日期
-        const fuelType = ref('95');
+        // 預設取得今天日期 YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
+
+        const travelDate = ref(today);
+        const fuelPrice = ref(32.0); // 預設油價範例
         const vehicleType = ref('car');
         const distance = ref(0);
 
-        const apiStatus = ref({ online: false, message: '🔄 正在同步中油即時油價...' });
-        const lastSyncTime = ref('');
-        const fuelHistory = ref([...DEFAULT_FUEL_HISTORY]);
-
-        // 日期轉標準毫秒數 (支援 YYYY-MM-DD 與 YYYY/MM/DD)
-        const parseDateToTimestamp = (dateStr) => {
-          if (!dateStr) return 0;
-          const formatted = dateStr.replace(/\//g, '-');
-          return new Date(formatted + 'T00:00:00').getTime();
-        };
-
-        // 計算與出差日期最接近且生效中的歷史油價項目
-        const matchedHistoryItem = computed(() => {
-          const selectedTime = parseDateToTimestamp(travelDate.value);
-
-          // 排序：從最新到最舊 (Descending)
-          const sorted = [...fuelHistory.value].sort((a, b) => {
-            return parseDateToTimestamp(b.date) - parseDateToTimestamp(a.date);
-          });
-
-          // 尋找第一筆「歷史調價日期 <= 出差日期」的資料
-          const match = sorted.find(item => parseDateToTimestamp(item.date) <= selectedTime);
-
-          return match || sorted[sorted.length - 1];
-        });
-
-        // 取得當前對應單價
-        const currentPrice = computed(() => {
-          if (!matchedHistoryItem.value) return 0;
-          return matchedHistoryItem.value[fuelType.value] || 0;
-        });
-
-        // 取得牌價生效週期起始日
-        const effectiveStartDate = computed(() => {
-          return matchedHistoryItem.value ? matchedHistoryItem.value.date : '---';
-        });
-
-        // 計算補助費用
+        // 計算補助金額
         const calculatedCost = computed(() => {
-          if (!distance.value || distance.value <= 0) return 0;
+          if (!distance.value || distance.value <= 0 || !fuelPrice.value || fuelPrice.value <= 0) {
+            return 0;
+          }
+          // 每公里耗油量 (km/L)
           const kmPerLiter = vehicleType.value === 'scooter' ? 35 : 12;
           const litersNeeded = distance.value / kmPerLiter;
-          return Math.round(litersNeeded * currentPrice.value);
-        });
-
-        // 解析中油 CSV/文字格式 API 內容
-        const parseCpcCsvData = (csvText) => {
-          const lines = csvText.split('\n');
-          const parsedData = [];
-
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const cols = line.split(',');
-            // 中油 openData 格式一般為: 牌價生效日期, 92, 95, 98, 超級柴油...
-            if (cols.length >= 5) {
-              const dateStr = cols[0].replace(/"/g, '').trim();
-              const p92 = parseFloat(cols[1]);
-              const p95 = parseFloat(cols[2]);
-              const p98 = parseFloat(cols[3]);
-              const pDiesel = parseFloat(cols[4]);
-
-              if (dateStr && !isNaN(p95)) {
-                parsedData.push({
-                  date: dateStr,
-                  92: p92,
-                  95: p95,
-                  98: p98,
-                  diesel: pDiesel
-                });
-              }
-            }
-          }
-          return parsedData;
-        };
-
-        // 抓取中油開放資料 API
-        const fetchCpcApi = async () => {
-          try {
-            const proxyUrl = 'https://api.allorigins.win/raw?url=';
-            const targetUrl = encodeURIComponent('https://vipm.cpc.com.tw/openData/ListPrices.aspx');
-            
-            const res = await fetch(proxyUrl + targetUrl, { signal: AbortSignal.timeout(5000) });
-            if (!res.ok) throw new Error('連線失敗');
-            
-            const textData = await res.text();
-            const parsedRemoteData = parseCpcCsvData(textData);
-
-            if (parsedRemoteData && parsedRemoteData.length > 0) {
-              // 將線上資料與內建歷史合併，去重
-              const dateMap = new Map();
-              [...parsedRemoteData, ...DEFAULT_FUEL_HISTORY].forEach(item => {
-                dateMap.set(item.date, item);
-              });
-              fuelHistory.value = Array.from(dateMap.values());
-              
-              apiStatus.value = { online: true, message: '🟢 已成功同步中油最新即時牌價 API' };
-            } else {
-              throw new Error('解析無結果');
-            }
-          } catch (err) {
-            // API 阻擋或請求失敗時，順暢降級至內建備援資料庫
-            apiStatus.value = { 
-              online: true, 
-              message: '🟢 已載入 2026 最新中油牌價即時資料庫 (離線備援)' 
-            };
-          } finally {
-            lastSyncTime.value = new Date().toLocaleTimeString();
-          }
-        };
-
-        onMounted(() => {
-          fetchCpcApi();
+          
+          return Math.round(litersNeeded * fuelPrice.value);
         });
 
         return {
           travelDate,
-          fuelType,
+          fuelPrice,
           vehicleType,
           distance,
-          apiStatus,
-          lastSyncTime,
-          currentPrice,
-          effectiveStartDate,
           calculatedCost
         };
       }
