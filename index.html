@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>機車差旅計價系統 - API 測試版</title>
+  <title>機車差旅計價系統 - 直連 API 測試版</title>
   <!-- Vue 3 CDN -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <!-- Tailwind CSS CDN -->
@@ -25,7 +25,7 @@
         <div>
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-motorcycle text-blue-600 text-2xl"></i>
-            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統 (API 純連線測試版)</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統 (中油 API 直連版)</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
             出差里程 × (當週實時油價 ÷ 機車平均油耗 + 每公里耗損折舊成本)
@@ -53,7 +53,7 @@
             :disabled="isSyncing"
             class="px-3.5 py-2 rounded-xl text-xs font-medium border border-slate-200 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
             <i class="fa-solid fa-rotate text-blue-600" :class="{'fa-spin': isSyncing}"></i>
-            <span>{{ isSyncing ? '同步中...' : '手動同步油價' }}</span>
+            <span>{{ isSyncing ? '同步中...' : '手動直連同步' }}</span>
           </button>
         </div>
       </div>
@@ -70,7 +70,7 @@
         </div>
         <div class="text-slate-400">
           <i class="fa-solid fa-database mr-1"></i>
-          已獲取 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄 (無本地資料庫)
+          已獲取 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄
         </div>
       </div>
     </header>
@@ -172,10 +172,10 @@
         <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
           <div class="flex justify-between items-center text-xs text-slate-600">
             <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-tag text-slate-400"></i>對應 API 牌價：
+              <i class="fa-solid fa-tag text-slate-400"></i>對應直連牌價：
             </span>
             <span class="font-bold text-sm" :class="(!matchedStartDate || isFutureDate) ? 'text-rose-500' : 'text-blue-600'">
-              <template v-if="!apiStatus.online">API 載入失敗</template>
+              <template v-if="!apiStatus.online">直連失敗 (CORS/網路限縮)</template>
               <template v-else-if="isFutureDate">無未來油價資料</template>
               <template v-else-if="currentFuelPrice === 0">查無當週油價</template>
               <template v-else>NT$ {{ currentFuelPrice.toFixed(1) }} / 升</template>
@@ -256,7 +256,7 @@
           </div>
           <div class="text-4xl font-extrabold text-yellow-400 tracking-tight flex items-baseline gap-1">
             <template v-if="!matchedStartDate || isFutureDate || currentFuelPrice === 0">
-              <span class="text-lg font-normal text-rose-400">資料無法取得</span>
+              <span class="text-lg font-normal text-rose-400">無 API 數據</span>
             </template>
             <template v-else>
               <span class="text-xl font-bold">NT$</span>
@@ -363,9 +363,7 @@
           }
         };
 
-        const apiStatus = ref({ online: false, message: '初始化 API 請求中...' });
-
-        // 移除了內建歷史資料庫，初始為空
+        const apiStatus = ref({ online: false, message: '正在直連中油 API...' });
         const fuelPriceHistory = ref([]);
 
         const defaultItems = [
@@ -384,71 +382,74 @@
 
         const maintenanceItems = ref(JSON.parse(JSON.stringify(defaultItems)));
 
-        // 僅透過 API 抓取中油官方數據
+        // 完全直連中油 WebService API (不經過任何 Proxy)
         const fetchLatestFuelPrices = async (manual = false) => {
           isSyncing.value = true;
-          apiStatus.value = { online: false, message: '連線中油 WebService API 中...' };
+          apiStatus.value = { online: false, message: '直連中油官方 WebService...' };
+
+          const directUrl = 'https://vipmbr.cpc.com.tw/cpcstn/listpricewebservice.asmx/getCPCMainProdListPrice_Historical';
 
           try {
-            const targetUrl = 'https://vipmbr.cpc.com.tw/cpcstn/listpricewebservice.asmx/getCPCMainProdListPrice_Historical';
-            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
-            
-            const response = await fetch(proxyUrl);
-            
+            const response = await fetch(directUrl, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/xml, text/xml, */*'
+              }
+            });
+
             if (response.ok) {
-              const wrapperData = await response.json();
-              if (wrapperData && wrapperData.contents) {
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(wrapperData.contents, 'text/xml');
-                const tables = xmlDoc.querySelectorAll('Table');
+              const xmlText = await response.text();
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+              const tables = xmlDoc.querySelectorAll('Table');
 
-                if (tables.length > 0) {
-                  const fetchedRecords = [];
-                  const groupedData = {};
+              if (tables.length > 0) {
+                const fetchedRecords = [];
+                const groupedData = {};
 
-                  tables.forEach(table => {
-                    const prodName = table.querySelector('ProductsName')?.textContent || '';
-                    const price = parseFloat(table.querySelector('ListPrice')?.textContent || '0');
-                    const dateStr = table.querySelector('PRICEDATE')?.textContent;
+                tables.forEach(table => {
+                  const prodName = table.querySelector('ProductsName')?.textContent || '';
+                  const price = parseFloat(table.querySelector('ListPrice')?.textContent || '0');
+                  const dateStr = table.querySelector('PRICEDATE')?.textContent;
 
-                    if (dateStr && dateStr.length >= 10) {
-                      const formattedDate = dateStr.substring(0, 10).replace(/\//g, '-');
+                  if (dateStr && dateStr.length >= 10) {
+                    const formattedDate = dateStr.substring(0, 10).replace(/\//g, '-');
 
-                      if (!groupedData[formattedDate]) {
-                        groupedData[formattedDate] = { date: formattedDate, s92: 0, s95: 0, s98: 0 };
-                      }
-
-                      if (prodName.includes('92')) groupedData[formattedDate].s92 = price;
-                      if (prodName.includes('95')) groupedData[formattedDate].s95 = price;
-                      if (prodName.includes('98')) groupedData[formattedDate].s98 = price;
+                    if (!groupedData[formattedDate]) {
+                      groupedData[formattedDate] = { date: formattedDate, s92: 0, s95: 0, s98: 0 };
                     }
-                  });
 
-                  for (const d in groupedData) {
-                    fetchedRecords.push(groupedData[d]);
+                    if (prodName.includes('92')) groupedData[formattedDate].s92 = price;
+                    if (prodName.includes('95')) groupedData[formattedDate].s95 = price;
+                    if (prodName.includes('98')) groupedData[formattedDate].s98 = price;
                   }
+                });
 
-                  // 按日期降冪排列
-                  fetchedRecords.sort((a, b) => b.date.localeCompare(a.date));
+                for (const d in groupedData) {
+                  fetchedRecords.push(groupedData[d]);
+                }
 
-                  if (fetchedRecords.length > 0) {
-                    fuelPriceHistory.value = fetchedRecords;
-                    apiStatus.value = { online: true, message: `🟢 API 成功載入 ${fetchedRecords.length} 筆資料` };
-                    lastSyncTime.value = new Date().toLocaleTimeString();
-                    onDateOrFuelChange();
-                    isSyncing.value = false;
-                    return;
-                  }
+                fetchedRecords.sort((a, b) => b.date.localeCompare(a.date));
+
+                if (fetchedRecords.length > 0) {
+                  fuelPriceHistory.value = fetchedRecords;
+                  apiStatus.value = { online: true, message: `🟢 直連成功 (取得 ${fetchedRecords.length} 筆)` };
+                  lastSyncTime.value = new Date().toLocaleTimeString();
+                  onDateOrFuelChange();
+                  isSyncing.value = false;
+                  return;
                 }
               }
             }
-            throw new Error('API 無法回傳資料或格式不相符');
+            throw new Error('無法取得有效 XML 內容');
           } catch (err) {
-            console.error('API 請求失敗:', err);
-            apiStatus.value = { online: false, message: `🔴 API 連線失敗: ${err.message}` };
-          } finally {
-            isSyncing.value = false;
-          }
+            console.error('直連中油 API 失敗 (主要為 CORS 跨網域限制問題):', err);
+            apiStatus.value = { 
+              online: false, 
+              message: `🔴 直連失敗: 瀏覽器拒絕跨網域連線 (CORS Error)` 
+            };
+          } font-mono
+          isSyncing.value = false;
         };
 
         const totalLossPerKm = computed(() => {
