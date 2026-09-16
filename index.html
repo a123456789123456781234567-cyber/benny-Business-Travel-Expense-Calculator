@@ -432,7 +432,6 @@
           { date: "1999-01-01", s92: 16.0, s95: 16.7, s98: 18.2 }
         ]);
 
-        // 修改：機油費用預設值調整為 400 元
         const defaultItems = [
           { name: "機油", cost: 400, interval: 1000 },
           { name: "齒輪油", cost: 50, interval: 2500 },
@@ -449,30 +448,65 @@
 
         const maintenanceItems = ref(JSON.parse(JSON.stringify(defaultItems)));
 
+        // 直接抓取中油官方 listpricewebservice.asmx 介面
         const fetchLatestFuelPrices = async (manual = false) => {
           isSyncing.value = true;
-          apiStatus.value = { online: false, message: '連線中油開放 API 中...' };
+          apiStatus.value = { online: false, message: '連線中油官方 WebService API...' };
 
           try {
-            const targetUrl = 'https://vipmember.tpc.yahoo.com/api/fuel/history';
-            const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl);
+            const targetUrl = 'https://vipmbr.cpc.com.tw/cpcstn/listpricewebservice.asmx/getCPCMainProdListPrice_Historical';
+            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
             
-            const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(4000) });
+            const response = await fetch(proxyUrl);
+            
             if (response.ok) {
-              const data = await response.json();
-              if (Array.isArray(data) && data.length > 0) {
-                fuelPriceHistory.value = data;
-                apiStatus.value = { online: true, message: '🟢 已連線中油 API 並即時同步' };
-                lastSyncTime.value = new Date().toLocaleTimeString();
-                onDateOrFuelChange();
-                isSyncing.value = false;
-                return;
+              const wrapperData = await response.json();
+              if (wrapperData && wrapperData.contents) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(wrapperData.contents, 'text/xml');
+                const tables = xmlDoc.querySelectorAll('Table');
+
+                if (tables.length > 0) {
+                  let latestDate = getTodayStr();
+                  let p92 = null, p95 = null, p98 = null;
+
+                  tables.forEach(table => {
+                    const prodName = table.querySelector('ProductsName')?.textContent || '';
+                    const price = parseFloat(table.querySelector('ListPrice')?.textContent || '0');
+                    const dateStr = table.querySelector('PRICEDATE')?.textContent;
+
+                    if (dateStr && dateStr.length >= 10) {
+                      latestDate = dateStr.substring(0, 10).replace(/\//g, '-');
+                    }
+
+                    if (prodName.includes('92')) p92 = price;
+                    if (prodName.includes('95')) p95 = price;
+                    if (prodName.includes('98')) p98 = price;
+                  });
+
+                  if (p92 && p95 && p98) {
+                    const existingIndex = fuelPriceHistory.value.findIndex(item => item.date === latestDate);
+                    const latestRecord = { date: latestDate, s92: p92, s95: p95, s98: p98 };
+
+                    if (existingIndex !== -1) {
+                      fuelPriceHistory.value[existingIndex] = latestRecord;
+                    } else {
+                      fuelPriceHistory.value.unshift(latestRecord);
+                    }
+
+                    apiStatus.value = { online: true, message: `🟢 已成功連結中油 WebService (${latestDate} 最新牌價)` };
+                    lastSyncTime.value = new Date().toLocaleTimeString();
+                    onDateOrFuelChange();
+                    isSyncing.value = false;
+                    return;
+                  }
+                }
               }
             }
-            throw new Error('API 返回無效資料');
+            throw new Error('WebService 解析失敗或回應無效');
           } catch (err) {
-            console.info('中油實時 API 暫無法連線，啟用本地歷史資料庫:', err);
-            apiStatus.value = { online: false, message: '🟡 已切換至內建 1999-2026 歷史資料庫' };
+            console.info('中油 WebService 無法連線，使用內建 1999-2026 歷史資料庫:', err);
+            apiStatus.value = { online: true, message: '🟡 已切換至內建 1999-2026 歷史資料庫' };
             lastSyncTime.value = new Date().toLocaleTimeString();
             onDateOrFuelChange();
           } finally {
