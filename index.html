@@ -4,115 +4,118 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>機車差旅計價系統</title>
+  <!-- Vue 3 CDN -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
   <div id="app" class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
     
-    <!-- Header -->
     <header class="mb-6 bg-white rounded-2xl shadow-sm p-4 sm:p-6 border border-slate-200">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-motorcycle text-blue-600 text-2xl"></i>
-            <h1 class="text-2xl font-extrabold text-slate-900">機車差旅計價系統</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            出差里程 × (當週實時油價 ÷ 機車平均油耗 + 每公里耗損折舊成本)
+            出差里程 × (每升油價 ÷ 機車平均油耗 + 每公里耗損折舊成本)
           </p>
         </div>
 
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <nav class="flex bg-slate-100 p-1 rounded-xl">
+        <!-- Navigation Tabs -->
+        <div class="flex items-center gap-3">
+          <nav class="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
             <button 
               @click="activeTab = 'calculator'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2', activeTab === 'calculator' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600']">
+              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'calculator' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
               <i class="fa-solid fa-calculator"></i>
               差旅費用計算
             </button>
             <button 
               @click="activeTab = 'settings'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600']">
+              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
               <i class="fa-solid fa-sliders"></i>
               耗損與參數設定
             </button>
           </nav>
-
-          <button 
-            @click="onDateOrFuelChange"
-            :disabled="isSyncing"
-            class="px-3.5 py-2 rounded-xl text-xs font-medium border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
-            <i class="fa-solid fa-rotate text-blue-600" :class="{'fa-spin': isSyncing}"></i>
-            <span>{{ isSyncing ? '查詢中...' : '重新查詢' }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- API Status Bar -->
-      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center text-xs text-slate-500 gap-2">
-        <div class="flex items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
-            :class="apiStatus.online ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
-            <span class="w-1.5 h-1.5 rounded-full" :class="apiStatus.online ? 'bg-emerald-500' : 'bg-rose-500'"></span>
-            {{ apiStatus.message }}
-          </span>
-          <span v-if="lastSyncTime" class="text-slate-400">查詢時間: {{ lastSyncTime }}</span>
         </div>
       </div>
     </header>
 
-    <!-- Calculator View -->
     <main v-if="activeTab === 'calculator'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Input Panel -->
       <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
         <div class="flex justify-between items-center border-b pb-3 border-slate-100">
-          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">出差資訊輸入</h2>
-          <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600">重置欄位</button>
+          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3 flex items-center gap-2">
+            出差資訊輸入
+          </h2>
+          <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600 transition">
+            <i class="fa-solid fa-arrow-rotate-left mr-1"></i>重置欄位
+          </button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- 出差日期（修改時自動觸發 API 查詢） -->
+          <!-- Departure Date -->
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">出差日期</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-regular fa-calendar-days text-slate-400 mr-1"></i>出差日期
+            </label>
             <input 
               type="date" 
               v-model="inputDate" 
-              @change="onDateOrFuelChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
           </div>
 
-          <!-- 油品選擇（修改時自動觸發 API 查詢） -->
+          <!-- Fuel Price Input -->
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">選擇使用油品</label>
-            <select 
-              v-model="selectedFuelType" 
-              @change="onDateOrFuelChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white">
-              <option value="92">92 無鉛汽油</option>
-              <option value="95">95 無鉛汽油</option>
-              <option value="98">98 無鉛汽油</option>
-            </select>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-gas-pump text-slate-400 mr-1"></i>每公升油價 (NT$)
+            </label>
+            <div class="relative">
+              <input 
+                type="number" 
+                step="0.1" 
+                min="0"
+                v-model.number="fuelPrice" 
+                placeholder="請輸入油價"
+                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm font-semibold text-slate-800 pr-14">
+              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元/升</span>
+            </div>
           </div>
         </div>
 
-        <!-- 油耗設定 -->
+        <!-- Fuel Efficiency -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">機車平均油耗設定</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-gauge-high text-slate-400 mr-1"></i>機車平均油耗設定
+            </label>
             <select 
               v-model="fuelPreset" 
               @change="onPresetChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white">
-              <option value="45">省油型 (45 km/L)</option>
-              <option value="35">標準型 (35 km/L)</option>
-              <option value="25">耗油型/黃紅牌 (25 km/L)</option>
+              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
+              <option value="45">省油型 (45 km/L - 如綠牌/新世代國民車)</option>
+              <option value="35">標準型 (35 km/L - 一般 125/150cc 速克達)</option>
+              <option value="25">耗油型/黃紅牌 (25 km/L - 重機/老舊車款)</option>
               <option value="custom">自訂油耗數值</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">每公升可行駛里程 (km/L)</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-sliders text-slate-400 mr-1"></i>每公升可行駛里程 (km/L)
+            </label>
             <div class="relative">
               <input 
                 type="number" 
@@ -120,15 +123,17 @@
                 step="0.1" 
                 v-model.number="fuelEfficiency" 
                 :disabled="fuelPreset !== 'custom'"
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm pr-14 disabled:bg-slate-100">
-              <span class="absolute right-4 top-3.5 text-xs text-slate-400">km/L</span>
+                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500">
+              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
             </div>
           </div>
         </div>
 
-        <!-- 里程輸入 -->
+        <!-- Travel Distance Input -->
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">出差往返總里程 (km)</label>
+          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+            <i class="fa-solid fa-route text-slate-400 mr-1"></i>出差往返總里程 (公里 km)
+          </label>
           <div class="relative">
             <input 
               type="number" 
@@ -136,67 +141,99 @@
               step="0.1" 
               v-model.number="distance" 
               placeholder="請輸入里程，例如: 28.5" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm pr-12">
-            <span class="absolute right-4 top-3.5 text-xs text-slate-400">km</span>
+              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
+            <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km</span>
           </div>
         </div>
 
-        <!-- 明細顯示區 -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+        <!-- Breakdown Details Card -->
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
           <div class="flex justify-between items-center text-xs text-slate-600">
-            <span>對應當週歷史牌價：</span>
-            <span class="font-bold text-sm" :class="currentFuelPrice === 0 ? 'text-rose-500' : 'text-blue-600'">
-              {{ currentFuelPrice > 0 ? `NT$ ${currentFuelPrice.toFixed(1)} / 升` : '無當週數據' }}
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-wrench text-slate-400"></i>目前單位車輛耗損折舊：
             </span>
+            <span class="font-semibold text-slate-800">NT$ {{ totalLossPerKm.toFixed(3) }} / km</span>
           </div>
-          <div class="flex justify-between items-center text-xs text-slate-500">
-            <span>該牌價生效起始日：</span>
-            <span class="font-medium text-slate-700">{{ matchedStartDate || '查無對應週期' }}</span>
+
+          <div class="flex justify-between items-center text-xs text-slate-600">
+            <span>合計公里出差費率：</span>
+            <span class="font-semibold text-slate-800">
+              NT$ {{ (fuelEfficiency > 0 ? ((fuelPrice || 0) / fuelEfficiency + totalLossPerKm) : 0).toFixed(3) }} / km 
+              (按 {{ fuelEfficiency || 35 }}km/L 折算)
+            </span>
           </div>
         </div>
       </section>
 
-      <!-- Summary Section -->
-      <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between">
+      <!-- Summary Panel -->
+      <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between border border-slate-800">
         <div>
-          <h2 class="text-base font-bold mb-4 pb-2 border-b border-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-receipt text-yellow-400"></i>費用試算總結
-          </h2>
-          <div class="space-y-3 text-xs sm:text-sm">
-            <div class="flex justify-between">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-receipt text-yellow-400"></i>費用試算總結
+            </h2>
+            <span class="text-[10px] uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">Auto Calc</span>
+          </div>
+          
+          <div class="space-y-3.5 text-xs sm:text-sm">
+            <div class="flex justify-between items-center">
               <span class="text-slate-400">預估使用汽油量</span>
-              <span>{{ estimatedLiters.toFixed(2) }} 升</span>
+              <span class="font-semibold text-slate-200">{{ estimatedLiters.toFixed(2) }} 升</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-400">當週油價成本</span>
-              <span>NT$ {{ fuelSubTotal.toFixed(1) }}</span>
+
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">油價成本</span>
+              <span class="font-semibold">NT$ {{ fuelSubTotal.toFixed(1) }}</span>
             </div>
-            <div class="flex justify-between">
+            
+            <div class="flex justify-between items-center">
               <span class="text-slate-400">車輛耗損折舊成本</span>
-              <span>NT$ {{ lossSubTotal.toFixed(1) }}</span>
+              <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+              <span>出差總里程</span>
+              <span class="font-mono text-slate-200">{{ distance || 0 }} km</span>
             </div>
           </div>
         </div>
 
         <div class="mt-8 pt-4 border-t border-slate-800">
-          <span class="text-xs text-slate-400">總應給付報銷金額 (無條件進位)</span>
-          <div class="text-4xl font-extrabold text-yellow-400 tracking-tight mt-1">
-            NT$ {{ Math.ceil(totalCost) }}
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs text-slate-400">總應給付報銷金額 (無條件進位)</span>
+            <span class="text-[11px] text-yellow-400/80">NTD (TWD)</span>
           </div>
+          <div class="text-4xl font-extrabold text-yellow-400 tracking-tight flex items-baseline gap-1">
+            <span class="text-xl font-bold">NT$</span>
+            <span>{{ Math.ceil(totalCost) }}</span>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2">
+            * 依公司規定取整數給付。未滿 1 元採無條件進位處理。
+          </p>
         </div>
       </section>
+
     </main>
 
-    <!-- Settings View -->
     <main v-if="activeTab === 'settings'" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-      <div class="flex justify-between items-center border-b pb-3 border-slate-100">
-        <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">耗損項目與折舊設定</h2>
-        <button @click="resetDefaults" class="text-xs text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">恢復預設參數</button>
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 border-slate-100">
+        <div>
+          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">
+            耗損項目與折舊設定
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">自訂各項耗材單價與更換週期，系統將自動計算每公里平均成本。</p>
+        </div>
+        <button 
+          @click="resetDefaults" 
+          class="text-xs text-rose-600 hover:text-rose-700 font-medium border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition">
+          <i class="fa-solid fa-rotate-left mr-1"></i>恢復預設參數
+        </button>
       </div>
 
+      <!-- Maintenance Items Table -->
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs sm:text-sm">
-          <thead class="bg-slate-50 text-slate-600 border-y border-slate-200">
+          <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
             <tr>
               <th class="py-3 px-3">耗損 / 折舊項目</th>
               <th class="py-3 px-3">單次費用 (NT$)</th>
@@ -205,15 +242,23 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="(item, index) in maintenanceItems" :key="index">
+            <tr v-for="(item, index) in maintenanceItems" :key="index" class="hover:bg-slate-50/80 transition">
               <td class="py-2.5 px-3 font-medium text-slate-700">{{ item.name }}</td>
               <td class="py-2.5 px-3">
-                <input type="number" min="0" v-model.number="item.cost" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs">
+                <input 
+                  type="number" 
+                  min="0" 
+                  v-model.number="item.cost" 
+                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
               </td>
               <td class="py-2.5 px-3">
-                <input type="number" min="1" v-model.number="item.interval" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs">
+                <input 
+                  type="number" 
+                  min="1" 
+                  v-model.number="item.interval" 
+                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
               </td>
-              <td class="py-2.5 px-3 text-right font-mono">
+              <td class="py-2.5 px-3 text-right font-mono font-medium text-slate-700">
                 NT$ {{ (item.interval > 0 ? (item.cost / item.interval) : 0).toFixed(4) }}
               </td>
             </tr>
@@ -221,7 +266,7 @@
         </table>
       </div>
 
-      <div class="mt-4 p-4 bg-blue-50 border border-blue-100 text-blue-900 rounded-xl flex justify-between items-center">
+      <div class="mt-4 p-4 bg-blue-50/60 border border-blue-100 text-blue-900 rounded-xl flex justify-between items-center">
         <span class="text-xs sm:text-sm font-semibold">合計每公里車輛固定耗損折舊成本：</span>
         <span class="text-base sm:text-lg font-bold font-mono text-blue-700">NT$ {{ totalLossPerKm.toFixed(4) }} / km</span>
       </div>
@@ -230,13 +275,11 @@
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted } = Vue;
+    const { createApp, ref, computed } = Vue;
 
     createApp({
       setup() {
         const activeTab = ref('calculator');
-        const isSyncing = ref(false);
-        const lastSyncTime = ref('');
 
         const getTodayStr = () => {
           const now = new Date();
@@ -247,15 +290,17 @@
         };
 
         const inputDate = ref(getTodayStr());
-        const selectedFuelType = ref('95');
+        const fuelPrice = ref(31.0);
         const distance = ref(0);
-        const currentFuelPrice = ref(0);
-        const matchedStartDate = ref('');
 
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
 
-        const apiStatus = ref({ online: false, message: '準備連線中...' });
+        const onPresetChange = () => {
+          if (fuelPreset.value !== 'custom') {
+            fuelEfficiency.value = parseFloat(fuelPreset.value);
+          }
+        };
 
         const defaultItems = [
           { name: "機油", cost: 400, interval: 1000 },
@@ -273,44 +318,6 @@
 
         const maintenanceItems = ref(JSON.parse(JSON.stringify(defaultItems)));
 
-        // 前端每次切換日期或油品時發送 Request 給 Cloudflare Worker
-        const onDateOrFuelChange = async () => {
-          if (!inputDate.value) return;
-
-          isSyncing.value = true;
-          apiStatus.value = { online: false, message: '向 Cloudflare Worker 後端查詢中...' };
-
-          try {
-            // 你的 Cloudflare Worker 專屬網址
-            const workerUrl = `https://snowy-snow-5dbb.a123456789123456781234567.workers.dev/?date=${inputDate.value}&type=${selectedFuelType.value}`;
-            
-            const res = await fetch(workerUrl);
-            const data = await res.json();
-
-            if (data.success) {
-              currentFuelPrice.value = data.price;
-              matchedStartDate.value = data.effectiveDate;
-              apiStatus.value = { online: true, message: `🟢 查詢成功 (對應生效日: ${data.effectiveDate})` };
-              lastSyncTime.value = new Date().toLocaleTimeString();
-            } else {
-              currentFuelPrice.value = 0;
-              matchedStartDate.value = '';
-              apiStatus.value = { online: false, message: `🔴 ${data.message}` };
-            }
-          } catch (err) {
-            console.error('後端連線失敗:', err);
-            apiStatus.value = { online: false, message: '🔴 無法連線至 Cloudflare Worker 後端' };
-          } finally {
-            isSyncing.value = false;
-          }
-        };
-
-        const onPresetChange = () => {
-          if (fuelPreset.value !== 'custom') {
-            fuelEfficiency.value = parseFloat(fuelPreset.value);
-          }
-        };
-
         const totalLossPerKm = computed(() => {
           return maintenanceItems.value.reduce((sum, item) => {
             return sum + (item.interval > 0 ? (item.cost / item.interval) : 0);
@@ -323,8 +330,7 @@
         });
 
         const fuelSubTotal = computed(() => {
-          if (currentFuelPrice.value === 0) return 0;
-          return estimatedLiters.value * currentFuelPrice.value;
+          return estimatedLiters.value * (fuelPrice.value || 0);
         });
 
         const lossSubTotal = computed(() => {
@@ -333,46 +339,34 @@
         });
 
         const totalCost = computed(() => {
-          if (currentFuelPrice.value === 0) return 0;
           return fuelSubTotal.value + lossSubTotal.value;
         });
 
         const resetInputs = () => {
           inputDate.value = getTodayStr();
           distance.value = 0;
-          selectedFuelType.value = '95';
+          fuelPrice.value = 31.0;
           fuelPreset.value = '35';
           fuelEfficiency.value = 35.0;
-          onDateOrFuelChange();
         };
 
         const resetDefaults = () => {
           maintenanceItems.value = JSON.parse(JSON.stringify(defaultItems));
         };
 
-        onMounted(() => {
-          onDateOrFuelChange();
-        });
-
         return {
           activeTab,
-          isSyncing,
-          lastSyncTime,
           inputDate,
-          selectedFuelType,
+          fuelPrice,
           fuelPreset,
           fuelEfficiency,
           distance,
-          currentFuelPrice,
-          matchedStartDate,
-          apiStatus,
           maintenanceItems,
           totalLossPerKm,
           estimatedLiters,
           fuelSubTotal,
           lossSubTotal,
           totalCost,
-          onDateOrFuelChange,
           onPresetChange,
           resetInputs,
           resetDefaults
