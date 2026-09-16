@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>機車差旅計價系統 - 自動同步中油牌價</title>
+  <title>機車差旅計價系統 - API 測試版</title>
   <!-- Vue 3 CDN -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <!-- Tailwind CSS CDN -->
@@ -25,14 +25,13 @@
         <div>
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-motorcycle text-blue-600 text-2xl"></i>
-            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
+            <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統 (API 純連線測試版)</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            出差里程 × (當週實時油價 ÷ 機車平均油耗 + 每公里耗損折舊成本) | 支援 1999 年起歷史中油牌價
+            出差里程 × (當週實時油價 ÷ 機車平均油耗 + 每公里耗損折舊成本)
           </p>
         </div>
 
-        <!-- Navigation Tabs and Sync Status -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <nav class="flex bg-slate-100 p-1 rounded-xl">
             <button 
@@ -49,7 +48,6 @@
             </button>
           </nav>
 
-          <!-- API Manual Sync Button & Indicator -->
           <button 
             @click="fetchLatestFuelPrices(true)"
             :disabled="isSyncing"
@@ -64,15 +62,15 @@
       <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center text-xs text-slate-500 gap-2">
         <div class="flex items-center gap-2">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
-            :class="apiStatus.online ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-            <span class="w-1.5 h-1.5 rounded-full" :class="apiStatus.online ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+            :class="apiStatus.online ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
+            <span class="w-1.5 h-1.5 rounded-full" :class="apiStatus.online ? 'bg-emerald-500' : 'bg-rose-500'"></span>
             {{ apiStatus.message }}
           </span>
           <span v-if="lastSyncTime" class="text-slate-400">上次同步: {{ lastSyncTime }}</span>
         </div>
         <div class="text-slate-400">
           <i class="fa-solid fa-database mr-1"></i>
-          已載入 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄 (1999年至今)
+          已獲取 {{ fuelPriceHistory.length }} 筆歷史牌價紀錄 (無本地資料庫)
         </div>
       </div>
     </header>
@@ -98,7 +96,6 @@
             </label>
             <input 
               type="date" 
-              min="1999-01-01" 
               v-model="inputDate" 
               @change="onDateOrFuelChange" 
               class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
@@ -175,10 +172,12 @@
         <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
           <div class="flex justify-between items-center text-xs text-slate-600">
             <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-tag text-slate-400"></i>對應當週中油牌價：
+              <i class="fa-solid fa-tag text-slate-400"></i>對應 API 牌價：
             </span>
-            <span class="font-bold text-sm" :class="isFutureDate ? 'text-rose-500' : 'text-blue-600'">
-              <template v-if="isFutureDate">無未來油價資料</template>
+            <span class="font-bold text-sm" :class="(!matchedStartDate || isFutureDate) ? 'text-rose-500' : 'text-blue-600'">
+              <template v-if="!apiStatus.online">API 載入失敗</template>
+              <template v-else-if="isFutureDate">無未來油價資料</template>
+              <template v-else-if="currentFuelPrice === 0">查無當週油價</template>
               <template v-else>NT$ {{ currentFuelPrice.toFixed(1) }} / 升</template>
             </span>
           </div>
@@ -201,7 +200,7 @@
           <div class="flex justify-between items-center text-xs text-slate-600">
             <span>合計公里出差費率：</span>
             <span class="font-semibold text-slate-800">
-              <template v-if="isFutureDate">--</template>
+              <template v-if="!matchedStartDate || isFutureDate || currentFuelPrice === 0">--</template>
               <template v-else>
                 NT$ {{ (fuelEfficiency > 0 ? (currentFuelPrice / fuelEfficiency + totalLossPerKm) : 0).toFixed(3) }} / km 
                 (按 {{ fuelEfficiency || 35 }}km/L 折算)
@@ -225,7 +224,7 @@
             <div class="flex justify-between items-center">
               <span class="text-slate-400">預估使用汽油量</span>
               <span class="font-semibold text-slate-200">
-                <template v-if="isFutureDate">--</template>
+                <template v-if="!matchedStartDate || isFutureDate || currentFuelPrice === 0">--</template>
                 <template v-else>{{ estimatedLiters.toFixed(2) }} 升</template>
               </span>
             </div>
@@ -233,7 +232,7 @@
             <div class="flex justify-between items-center">
               <span class="text-slate-400">當週油價成本</span>
               <span class="font-semibold">
-                <template v-if="isFutureDate">--</template>
+                <template v-if="!matchedStartDate || isFutureDate || currentFuelPrice === 0">--</template>
                 <template v-else>NT$ {{ fuelSubTotal.toFixed(1) }}</template>
               </span>
             </div>
@@ -256,8 +255,8 @@
             <span class="text-[11px] text-yellow-400/80">NTD (TWD)</span>
           </div>
           <div class="text-4xl font-extrabold text-yellow-400 tracking-tight flex items-baseline gap-1">
-            <template v-if="isFutureDate">
-              <span class="text-lg font-normal text-rose-400">無未來牌價</span>
+            <template v-if="!matchedStartDate || isFutureDate || currentFuelPrice === 0">
+              <span class="text-lg font-normal text-rose-400">資料無法取得</span>
             </template>
             <template v-else>
               <span class="text-xl font-bold">NT$</span>
@@ -351,7 +350,7 @@
         const inputDate = ref(getTodayStr());
         const selectedFuelType = ref('95');
         const distance = ref(0);
-        const currentFuelPrice = ref(30.7);
+        const currentFuelPrice = ref(0);
         const matchedStartDate = ref('');
         const isFutureDate = ref(false);
 
@@ -364,73 +363,10 @@
           }
         };
 
-        const apiStatus = ref({ online: false, message: '初始化中...' });
+        const apiStatus = ref({ online: false, message: '初始化 API 請求中...' });
 
-        // Complete robust local offline database (1999 to 2026)
-        const fuelPriceHistory = ref([
-          // 2026
-          { date: "2026-09-14", s92: 31.2, s95: 32.7, s98: 34.7 },
-          { date: "2026-09-07", s92: 30.5, s95: 32.0, s98: 34.0 },
-          { date: "2026-08-17", s92: 30.5, s95: 32.0, s98: 34.0 },
-          { date: "2026-07-06", s92: 29.8, s95: 31.3, s98: 33.3 },
-          { date: "2026-06-15", s92: 32.4, s95: 33.9, s98: 35.9 },
-          { date: "2026-05-04", s92: 32.4, s95: 33.9, s98: 35.9 },
-          { date: "2026-03-23", s92: 30.7, s95: 32.2, s98: 34.2 },
-          { date: "2026-01-05", s92: 26.6, s95: 28.1, s98: 30.1 },
-
-          // 2025
-          { date: "2025-12-01", s92: 28.8, s95: 30.3, s98: 32.3 },
-          { date: "2025-09-15", s92: 29.5, s95: 31.0, s98: 33.0 },
-          { date: "2025-06-02", s92: 29.2, s95: 30.7, s98: 32.7 },
-          { date: "2025-03-03", s92: 29.8, s95: 31.3, s98: 33.3 },
-          { date: "2025-01-06", s92: 29.1, s95: 30.6, s98: 32.6 },
-
-          // 2024
-          { date: "2024-12-02", s92: 28.6, s95: 30.1, s98: 32.1 },
-          { date: "2024-09-02", s92: 29.5, s95: 31.0, s98: 33.0 },
-          { date: "2024-06-03", s92: 29.2, s95: 30.7, s98: 32.7 },
-          { date: "2024-03-04", s92: 29.5, s95: 31.0, s98: 33.0 },
-          { date: "2024-01-01", s92: 29.6, s95: 31.1, s98: 33.1 },
-
-          // 2022 - 2023
-          { date: "2023-08-07", s92: 30.5, s95: 32.0, s98: 34.0 },
-          { date: "2023-01-02", s92: 29.1, s95: 30.6, s98: 32.6 },
-          { date: "2022-03-14", s92: 31.5, s95: 33.0, s98: 35.0 },
-          { date: "2022-01-03", s92: 28.4, s95: 29.9, s98: 31.9 },
-
-          // 2020 - 2021
-          { date: "2021-07-05", s92: 28.2, s95: 29.7, s98: 31.7 },
-          { date: "2021-01-04", s92: 24.2, s95: 25.7, s98: 27.7 },
-          { date: "2020-05-04", s92: 16.2, s95: 17.7, s98: 19.7 },
-          { date: "2020-01-06", s92: 27.7, s95: 29.2, s98: 31.2 },
-
-          // 2015 - 2019
-          { date: "2019-01-07", s92: 24.5, s95: 26.0, s98: 28.0 },
-          { date: "2018-10-01", s92: 30.0, s95: 31.5, s98: 33.5 },
-          { date: "2017-01-02", s92: 25.3, s95: 26.8, s98: 28.8 },
-          { date: "2016-01-18", s92: 18.4, s95: 19.9, s98: 21.9 },
-          { date: "2015-01-05", s92: 23.1, s95: 24.6, s98: 26.6 },
-
-          // 2010 - 2014
-          { date: "2014-01-06", s92: 33.9, s95: 35.4, s98: 37.4 },
-          { date: "2013-02-18", s92: 34.9, s95: 36.4, s98: 38.4 },
-          { date: "2012-04-02", s92: 34.0, s95: 35.5, s98: 37.5 },
-          { date: "2011-01-03", s92: 31.6, s95: 32.3, s98: 33.8 },
-          { date: "2010-01-04", s92: 29.2, s95: 29.9, s98: 31.4 },
-
-          // 2005 - 2009
-          { date: "2009-01-03", s92: 21.1, s95: 21.8, s98: 23.3 },
-          { date: "2008-07-02", s92: 34.6, s95: 35.3, s98: 36.8 },
-          { date: "2007-01-03", s92: 26.0, s95: 26.7, s98: 28.2 },
-          { date: "2006-01-01", s92: 24.2, s95: 24.9, s98: 26.4 },
-          { date: "2005-01-01", s92: 22.0, s95: 22.7, s98: 24.2 },
-
-          // 1999 - 2004
-          { date: "2004-01-01", s92: 20.5, s95: 21.2, s98: 22.7 },
-          { date: "2002-01-01", s92: 17.5, s95: 18.2, s98: 19.7 },
-          { date: "2000-01-01", s92: 19.0, s95: 19.7, s98: 21.2 },
-          { date: "1999-01-01", s92: 16.0, s95: 16.7, s98: 18.2 }
-        ]);
+        // 移除了內建歷史資料庫，初始為空
+        const fuelPriceHistory = ref([]);
 
         const defaultItems = [
           { name: "機油", cost: 400, interval: 1000 },
@@ -448,10 +384,10 @@
 
         const maintenanceItems = ref(JSON.parse(JSON.stringify(defaultItems)));
 
-        // 直接抓取中油官方 listpricewebservice.asmx 介面
+        // 僅透過 API 抓取中油官方數據
         const fetchLatestFuelPrices = async (manual = false) => {
           isSyncing.value = true;
-          apiStatus.value = { online: false, message: '連線中油官方 WebService API...' };
+          apiStatus.value = { online: false, message: '連線中油 WebService API 中...' };
 
           try {
             const targetUrl = 'https://vipmbr.cpc.com.tw/cpcstn/listpricewebservice.asmx/getCPCMainProdListPrice_Historical';
@@ -467,8 +403,8 @@
                 const tables = xmlDoc.querySelectorAll('Table');
 
                 if (tables.length > 0) {
-                  let latestDate = getTodayStr();
-                  let p92 = null, p95 = null, p98 = null;
+                  const fetchedRecords = [];
+                  const groupedData = {};
 
                   tables.forEach(table => {
                     const prodName = table.querySelector('ProductsName')?.textContent || '';
@@ -476,25 +412,28 @@
                     const dateStr = table.querySelector('PRICEDATE')?.textContent;
 
                     if (dateStr && dateStr.length >= 10) {
-                      latestDate = dateStr.substring(0, 10).replace(/\//g, '-');
-                    }
+                      const formattedDate = dateStr.substring(0, 10).replace(/\//g, '-');
 
-                    if (prodName.includes('92')) p92 = price;
-                    if (prodName.includes('95')) p95 = price;
-                    if (prodName.includes('98')) p98 = price;
+                      if (!groupedData[formattedDate]) {
+                        groupedData[formattedDate] = { date: formattedDate, s92: 0, s95: 0, s98: 0 };
+                      }
+
+                      if (prodName.includes('92')) groupedData[formattedDate].s92 = price;
+                      if (prodName.includes('95')) groupedData[formattedDate].s95 = price;
+                      if (prodName.includes('98')) groupedData[formattedDate].s98 = price;
+                    }
                   });
 
-                  if (p92 && p95 && p98) {
-                    const existingIndex = fuelPriceHistory.value.findIndex(item => item.date === latestDate);
-                    const latestRecord = { date: latestDate, s92: p92, s95: p95, s98: p98 };
+                  for (const d in groupedData) {
+                    fetchedRecords.push(groupedData[d]);
+                  }
 
-                    if (existingIndex !== -1) {
-                      fuelPriceHistory.value[existingIndex] = latestRecord;
-                    } else {
-                      fuelPriceHistory.value.unshift(latestRecord);
-                    }
+                  // 按日期降冪排列
+                  fetchedRecords.sort((a, b) => b.date.localeCompare(a.date));
 
-                    apiStatus.value = { online: true, message: `🟢 已成功連結中油 WebService (${latestDate} 最新牌價)` };
+                  if (fetchedRecords.length > 0) {
+                    fuelPriceHistory.value = fetchedRecords;
+                    apiStatus.value = { online: true, message: `🟢 API 成功載入 ${fetchedRecords.length} 筆資料` };
                     lastSyncTime.value = new Date().toLocaleTimeString();
                     onDateOrFuelChange();
                     isSyncing.value = false;
@@ -503,12 +442,10 @@
                 }
               }
             }
-            throw new Error('WebService 解析失敗或回應無效');
+            throw new Error('API 無法回傳資料或格式不相符');
           } catch (err) {
-            console.info('中油 WebService 無法連線，使用內建 1999-2026 歷史資料庫:', err);
-            apiStatus.value = { online: true, message: '🟡 已切換至內建 1999-2026 歷史資料庫' };
-            lastSyncTime.value = new Date().toLocaleTimeString();
-            onDateOrFuelChange();
+            console.error('API 請求失敗:', err);
+            apiStatus.value = { online: false, message: `🔴 API 連線失敗: ${err.message}` };
           } finally {
             isSyncing.value = false;
           }
@@ -526,7 +463,7 @@
         });
 
         const fuelSubTotal = computed(() => {
-          if (isFutureDate.value) return 0;
+          if (isFutureDate.value || currentFuelPrice.value === 0) return 0;
           return estimatedLiters.value * currentFuelPrice.value;
         });
 
@@ -536,12 +473,16 @@
         });
 
         const totalCost = computed(() => {
-          if (isFutureDate.value) return 0;
+          if (isFutureDate.value || currentFuelPrice.value === 0) return 0;
           return fuelSubTotal.value + lossSubTotal.value;
         });
 
         const onDateOrFuelChange = () => {
-          if (!inputDate.value) return;
+          if (!inputDate.value || fuelPriceHistory.value.length === 0) {
+            currentFuelPrice.value = 0;
+            matchedStartDate.value = '';
+            return;
+          }
 
           const todayStr = getTodayStr();
 
@@ -557,11 +498,14 @@
             return record.date <= inputDate.value;
           });
 
-          const target = matchedRecord || fuelPriceHistory.value[fuelPriceHistory.value.length - 1];
-
-          const typeKey = 's' + selectedFuelType.value;
-          currentFuelPrice.value = target[typeKey] || 30.7;
-          matchedStartDate.value = target.date;
+          if (matchedRecord) {
+            const typeKey = 's' + selectedFuelType.value;
+            currentFuelPrice.value = matchedRecord[typeKey] || 0;
+            matchedStartDate.value = matchedRecord.date;
+          } else {
+            currentFuelPrice.value = 0;
+            matchedStartDate.value = '';
+          }
         };
 
         const resetInputs = () => {
