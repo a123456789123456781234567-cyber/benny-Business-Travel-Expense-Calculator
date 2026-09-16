@@ -91,22 +91,11 @@
             </select>
           </div>
 
-          <!-- Fuel Price Input with Google Search Link -->
+          <!-- Fuel Price Input -->
           <div>
-            <div class="flex justify-between items-center mb-1.5">
-              <label class="block text-xs font-semibold text-slate-600">
-                <i class="fa-solid fa-coins text-slate-400 mr-1"></i>當週油價 (NT$)
-              </label>
-              <!-- Google Direct Search Link -->
-              <a 
-                :href="googleSearchUrl" 
-                target="_blank" 
-                class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline">
-                <i class="fa-brands fa-google text-blue-500"></i>
-                <span>Google 查當週油價</span>
-                <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-              </a>
-            </div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-coins text-slate-400 mr-1"></i>當週油價 (NT$)
+            </label>
             <div class="relative">
               <input 
                 type="number" 
@@ -337,7 +326,6 @@
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
 
-        // 動態生成 Google 搜尋連結
         const googleSearchUrl = computed(() => {
           const query = `中油 ${inputDate.value} 當週 ${selectedFuelType.value}無鉛汽油 歷史油價`;
           return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
