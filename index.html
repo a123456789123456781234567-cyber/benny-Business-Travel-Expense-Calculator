@@ -65,7 +65,7 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Departure Date -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -77,22 +77,62 @@
               class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
           </div>
 
-          <!-- Fuel Price Input -->
+          <!-- Fuel Type Selection -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-gas-pump text-slate-400 mr-1"></i>每公升油價 (NT$)
+              <i class="fa-solid fa-gas-pump text-slate-400 mr-1"></i>選用汽油種類
             </label>
+            <select 
+              v-model="selectedFuelType" 
+              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
+              <option value="92">92 無鉛汽油</option>
+              <option value="95">95 無鉛汽油</option>
+              <option value="98">98 無鉛汽油</option>
+            </select>
+          </div>
+
+          <!-- Fuel Price Input with Google Search Link -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="block text-xs font-semibold text-slate-600">
+                <i class="fa-solid fa-coins text-slate-400 mr-1"></i>當週油價 (NT$)
+              </label>
+              <!-- Google Direct Search Link -->
+              <a 
+                :href="googleSearchUrl" 
+                target="_blank" 
+                class="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                <i class="fa-brands fa-google text-blue-500"></i>
+                <span>Google 查當週油價</span>
+                <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+              </a>
+            </div>
             <div class="relative">
               <input 
                 type="number" 
                 step="0.1" 
                 min="0"
                 v-model.number="fuelPrice" 
-                placeholder="請輸入油價"
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm font-semibold text-slate-800 pr-14">
+                placeholder="查完填入此處"
+                class="w-full p-3 border border-blue-200 bg-blue-50/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm font-semibold text-slate-800 pr-14">
               <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元/升</span>
             </div>
           </div>
+        </div>
+
+        <!-- Quick Google Helper Banner -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-blue-500 text-sm"></i>
+            <span>搜尋關鍵字已自動組好：<strong class="text-slate-800 font-mono">「中油 {{ inputDate }} 當週 {{ selectedFuelType }}無鉛汽油 歷史油價」</strong></span>
+          </div>
+          <a 
+            :href="googleSearchUrl" 
+            target="_blank" 
+            class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs transition flex items-center gap-1 shrink-0">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            立即搜尋
+          </a>
         </div>
 
         <!-- Fuel Efficiency -->
@@ -290,11 +330,18 @@
         };
 
         const inputDate = ref(getTodayStr());
+        const selectedFuelType = ref('95');
         const fuelPrice = ref(31.0);
         const distance = ref(0);
 
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
+
+        // 動態生成 Google 搜尋連結
+        const googleSearchUrl = computed(() => {
+          const query = `中油 ${inputDate.value} 當週 ${selectedFuelType.value}無鉛汽油 歷史油價`;
+          return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        });
 
         const onPresetChange = () => {
           if (fuelPreset.value !== 'custom') {
@@ -344,6 +391,7 @@
 
         const resetInputs = () => {
           inputDate.value = getTodayStr();
+          selectedFuelType.value = '95';
           distance.value = 0;
           fuelPrice.value = 31.0;
           fuelPreset.value = '35';
@@ -357,10 +405,12 @@
         return {
           activeTab,
           inputDate,
+          selectedFuelType,
           fuelPrice,
           fuelPreset,
           fuelEfficiency,
           distance,
+          googleSearchUrl,
           maintenanceItems,
           totalLossPerKm,
           estimatedLiters,
