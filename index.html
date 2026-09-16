@@ -10,6 +10,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SheetJS CDN (匯出 Excel 用) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     body {
@@ -188,7 +190,6 @@
             </div>
           </div>
 
-          <!-- 新增：停車費輸入欄位 -->
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1.5">
               <i class="fa-solid fa-square-parking text-slate-400 mr-1"></i>停車費 (NT$)
@@ -265,7 +266,6 @@
               <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
             </div>
 
-            <!-- 新增：總結顯示停車費 -->
             <div class="flex justify-between items-center">
               <span class="text-slate-400">停車費</span>
               <span class="font-semibold text-slate-200">NT$ {{ (parkingFee || 0).toFixed(0) }}</span>
@@ -278,8 +278,8 @@
           </div>
         </div>
 
-        <div class="mt-8 pt-4 border-t border-slate-800">
-          <div class="flex items-center justify-between mb-1">
+        <div class="mt-8 pt-4 border-t border-slate-800 space-y-4">
+          <div class="flex items-center justify-between">
             <span class="text-xs text-slate-400">總應給付報銷金額 (無條件進位)</span>
             <span class="text-[11px] text-yellow-400/80">NTD (TWD)</span>
           </div>
@@ -287,6 +287,14 @@
             <span class="text-xl font-bold">NT$</span>
             <span>{{ Math.ceil(totalCost) }}</span>
           </div>
+
+          <!-- 匯出 Excel 按鈕 -->
+          <button 
+            @click="exportToExcel" 
+            class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs transition duration-200 flex items-center justify-center gap-2 shadow-sm">
+            <i class="fa-solid fa-file-excel text-sm"></i>
+            匯出明細至 Excel
+          </button>
         </div>
       </section>
 
@@ -371,7 +379,7 @@
         const selectedFuelType = ref('95');
         const fuelPrice = ref(31.0);
         const distance = ref(0);
-        const parkingFee = ref(0); // 新增：停車費狀態
+        const parkingFee = ref(0);
 
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
@@ -423,17 +431,53 @@
           return distance.value * totalLossPerKm.value;
         });
 
-        // 總成本計算：加上停車費
         const totalCost = computed(() => {
           return fuelSubTotal.value + lossSubTotal.value + (parkingFee.value || 0);
         });
+
+        // 匯出 Excel 功能
+        const exportToExcel = () => {
+          const finalPay = Math.ceil(totalCost.value);
+          const data = [
+            ["項目", "數值", "單位 / 備註"],
+            ["出差日期", inputDate.value || "未填寫", ""],
+            ["出差事由", purpose.value || "未填寫", ""],
+            ["出差總里程", distance.value || 0, "km"],
+            ["汽油種類", `${selectedFuelType.value} 無鉛汽油`, ""],
+            ["當週油價", fuelPrice.value || 0, "元/升"],
+            ["機車油耗", fuelEfficiency.value || 0, "km/L"],
+            ["預估用油量", Number(estimatedLiters.value.toFixed(2)), "升"],
+            ["油耗費用金額", Number(fuelSubTotal.value.toFixed(1)), "元"],
+            ["單位折舊率", Number(totalLossPerKm.value.toFixed(4)), "元/km"],
+            ["車輛耗損折舊成本", Number(lossSubTotal.value.toFixed(1)), "元"],
+            ["停車費", parkingFee.value || 0, "元"],
+            ["總計應報銷金額", finalPay, "元 (無條件進位)"]
+          ];
+
+          // 創建工作表
+          const worksheet = XLSX.utils.aoa_to_sheet(data);
+          
+          // 設定欄寬
+          worksheet['!cols'] = [
+            { wch: 20 },
+            { wch: 25 },
+            { wch: 20 }
+          ];
+
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, "差旅報銷單");
+
+          // 產生檔名（機車差旅費用報銷單_日期.xlsx）
+          const fileName = `機車差旅費用報銷單_${inputDate.value || '未命名'}.xlsx`;
+          XLSX.writeFile(workbook, fileName);
+        };
 
         const resetInputs = () => {
           purpose.value = '';
           inputDate.value = getTodayStr();
           selectedFuelType.value = '95';
           distance.value = 0;
-          parkingFee.value = 0; // 重置停車費
+          parkingFee.value = 0;
           fuelPrice.value = 31.0;
           fuelPreset.value = '35';
           fuelEfficiency.value = 35.0;
@@ -461,6 +505,7 @@
           lossSubTotal,
           totalCost,
           onPresetChange,
+          exportToExcel,
           resetInputs,
           resetDefaults
         };
@@ -468,4 +513,4 @@
     }).mount('#app');
   </script>
 </body>
-</html>ㄋ
+</html>
