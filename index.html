@@ -28,7 +28,7 @@
             <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            出差里程 × (每升油價 ÷ 機車平均油耗 + 每公里耗損折舊成本)
+            出差里程 × (每升油價 ÷ 機車平均油耗 + 每公里耗損折舊成本) + 額外規費
           </p>
         </div>
 
@@ -73,7 +73,7 @@
           <input 
             type="text" 
             v-model="purpose" 
-            placeholder="請輸入出差事由，例如：外勤現場維護..." 
+            placeholder="請輸入出差事由，例如：拜訪客戶 XYZ 公司、外勤現場維護..." 
             class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
         </div>
 
@@ -170,20 +170,39 @@
           </div>
         </div>
 
-        <!-- Travel Distance Input -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-            <i class="fa-solid fa-route text-slate-400 mr-1"></i>出差往返總里程 (公里 km)
-          </label>
-          <div class="relative">
-            <input 
-              type="number" 
-              min="0" 
-              step="0.1" 
-              v-model.number="distance" 
-              placeholder="請輸入里程，例如: 28.5" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm pr-12">
-            <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km</span>
+        <!-- Travel Distance & Parking Fee Inputs -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-route text-slate-400 mr-1"></i>出差往返總里程 (公里 km)
+            </label>
+            <div class="relative">
+              <input 
+                type="number" 
+                min="0" 
+                step="0.1" 
+                v-model.number="distance" 
+                placeholder="請輸入里程，例如: 28.5" 
+                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
+              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km</span>
+            </div>
+          </div>
+
+          <!-- 新增：停車費輸入欄位 -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+              <i class="fa-solid fa-square-parking text-slate-400 mr-1"></i>停車費 (NT$)
+            </label>
+            <div class="relative">
+              <input 
+                type="number" 
+                min="0" 
+                step="1" 
+                v-model.number="parkingFee" 
+                placeholder="無則留空或填 0" 
+                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
+              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元</span>
+            </div>
           </div>
         </div>
 
@@ -244,6 +263,12 @@
             <div class="flex justify-between items-center">
               <span class="text-slate-400">車輛耗損折舊成本</span>
               <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
+            </div>
+
+            <!-- 新增：總結顯示停車費 -->
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">停車費</span>
+              <span class="font-semibold text-slate-200">NT$ {{ (parkingFee || 0).toFixed(0) }}</span>
             </div>
 
             <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
@@ -346,6 +371,7 @@
         const selectedFuelType = ref('95');
         const fuelPrice = ref(31.0);
         const distance = ref(0);
+        const parkingFee = ref(0); // 新增：停車費狀態
 
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
@@ -397,8 +423,9 @@
           return distance.value * totalLossPerKm.value;
         });
 
+        // 總成本計算：加上停車費
         const totalCost = computed(() => {
-          return fuelSubTotal.value + lossSubTotal.value;
+          return fuelSubTotal.value + lossSubTotal.value + (parkingFee.value || 0);
         });
 
         const resetInputs = () => {
@@ -406,6 +433,7 @@
           inputDate.value = getTodayStr();
           selectedFuelType.value = '95';
           distance.value = 0;
+          parkingFee.value = 0; // 重置停車費
           fuelPrice.value = 31.0;
           fuelPreset.value = '35';
           fuelEfficiency.value = 35.0;
@@ -424,6 +452,7 @@
           fuelPreset,
           fuelEfficiency,
           distance,
+          parkingFee,
           googleSearchUrl,
           maintenanceItems,
           totalLossPerKm,
@@ -439,4 +468,4 @@
     }).mount('#app');
   </script>
 </body>
-</html>
+</html>ㄋ
