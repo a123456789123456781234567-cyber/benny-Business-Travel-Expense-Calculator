@@ -3,24 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>機車差旅計價系統</title>
-  <!-- Vue 3 CDN -->
+  <title>機車差旅計價系統 (自動調整 Excel 欄寬版)</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- SheetJS CDN (匯出 Excel 用) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    body {
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
+    body { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
-  <div id="app" class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+  <div id="app" class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
     
     <header class="mb-6 bg-white rounded-2xl shadow-sm p-4 sm:p-6 border border-slate-200">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -30,330 +24,304 @@
             <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            出差里程 × (每升油價 ÷ 機車平均油耗 + 每公里耗損折舊成本) + 額外規費
+            第一頁純淨報銷明细（含適當 Excel 欄寬設定），第二頁全攤開每筆紀錄專屬 11 項參數。
           </p>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="flex items-center gap-3">
-          <nav class="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
-            <button 
-              @click="activeTab = 'calculator'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'calculator' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
-              <i class="fa-solid fa-calculator"></i>
-              差旅費用計算
-            </button>
-            <button 
-              @click="activeTab = 'settings'"
-              :class="['px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
-              <i class="fa-solid fa-sliders"></i>
-              耗損與參數設定
-            </button>
-          </nav>
-        </div>
+        <nav class="flex bg-slate-100 p-1 rounded-xl">
+          <button 
+            @click="activeTab = 'calculator'"
+            :class="['px-4 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2', activeTab === 'calculator' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
+            <i class="fa-solid fa-calculator"></i>
+            差旅費用計算與月總表
+          </button>
+          <button 
+            @click="activeTab = 'settings'"
+            :class="['px-4 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
+            <i class="fa-solid fa-sliders"></i>
+            預設耗損參數設定
+          </button>
+        </nav>
       </div>
     </header>
 
-    <main v-if="activeTab === 'calculator'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      
-      <!-- Input Panel -->
-      <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
-        <div class="flex justify-between items-center border-b pb-3 border-slate-100">
-          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3 flex items-center gap-2">
-            出差資訊輸入
-          </h2>
-          <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600 transition">
-            <i class="fa-solid fa-arrow-rotate-left mr-1"></i>重置欄位
-          </button>
+    <main v-if="activeTab === 'calculator'" class="space-y-6">
+
+      <section class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 w-full md:w-auto">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-file-excel text-xl"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">月報銷總表管理</h3>
+            <p class="text-xs text-slate-500">第一頁包含記錄與總金額，第二頁全攤開 11 項參數。</p>
+          </div>
         </div>
 
-        <!-- 出差事由輸入欄位 -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-            <i class="fa-solid fa-pen-to-square text-slate-400 mr-1"></i>出差事由 / 說明
+        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+            <span class="text-xs text-slate-500 font-medium">報銷月份：</span>
+            <input type="month" v-model="targetMonth" class="bg-transparent text-xs font-bold text-blue-600 focus:outline-none">
+          </div>
+
+          <label class="cursor-pointer px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition flex items-center gap-2 border border-slate-300">
+            <i class="fa-solid fa-folder-open text-amber-600"></i>
+            載入 Excel 月總表
+            <input type="file" accept=".xlsx, .xls" class="hidden" @change="importExcel" />
           </label>
-          <input 
-            type="text" 
-            v-model="purpose" 
-            placeholder="請輸入出差事由，例如：拜訪客戶 XYZ 公司、外勤現場維護..." 
-            class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- Departure Date -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-regular fa-calendar-days text-slate-400 mr-1"></i>出差日期
-            </label>
-            <input 
-              type="date" 
-              v-model="inputDate" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm">
-          </div>
-
-          <!-- Fuel Type Selection -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-gas-pump text-slate-400 mr-1"></i>選用汽油種類
-            </label>
-            <select 
-              v-model="selectedFuelType" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
-              <option value="92">92 無鉛汽油</option>
-              <option value="95">95 無鉛汽油</option>
-              <option value="98">98 無鉛汽油</option>
-            </select>
-          </div>
-
-          <!-- Fuel Price Input -->
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-coins text-slate-400 mr-1"></i>當週油價 (NT$)
-            </label>
-            <div class="relative">
-              <input 
-                type="number" 
-                step="0.1" 
-                min="0"
-                v-model.number="fuelPrice" 
-                placeholder="查完填入此處"
-                class="w-full p-3 border border-blue-200 bg-blue-50/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm font-semibold text-slate-800 pr-14">
-              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元/升</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Google Helper Banner -->
-        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-circle-info text-blue-500 text-sm"></i>
-            <span>搜尋關鍵字已自動組好：<strong class="text-slate-800 font-mono">「中油 {{ inputDate }} 當週 {{ selectedFuelType }}無鉛汽油 歷史油價」</strong></span>
-          </div>
-          <a 
-            :href="googleSearchUrl" 
-            target="_blank" 
-            class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs transition flex items-center gap-1 shrink-0">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            立即搜尋
-          </a>
-        </div>
-
-        <!-- Fuel Efficiency -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-gauge-high text-slate-400 mr-1"></i>機車平均油耗設定
-            </label>
-            <select 
-              v-model="fuelPreset" 
-              @change="onPresetChange" 
-              class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm bg-white">
-              <option value="45">省油型 (45 km/L - 如綠牌/新世代國民車)</option>
-              <option value="35">標準型 (35 km/L - 一般 125/150cc 速克達)</option>
-              <option value="25">耗油型/黃紅牌 (25 km/L - 重機/老舊車款)</option>
-              <option value="custom">自訂油耗數值</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-sliders text-slate-400 mr-1"></i>每公升可行駛里程 (km/L)
-            </label>
-            <div class="relative">
-              <input 
-                type="number" 
-                min="1" 
-                step="0.1" 
-                v-model.number="fuelEfficiency" 
-                :disabled="fuelPreset !== 'custom'"
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500">
-              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Travel Distance & Parking Fee Inputs -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-route text-slate-400 mr-1"></i>出差往返總里程 (公里 km)
-            </label>
-            <div class="relative">
-              <input 
-                type="number" 
-                min="0" 
-                step="0.1" 
-                v-model.number="distance" 
-                placeholder="請輸入里程，例如: 28.5" 
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
-              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km</span>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
-              <i class="fa-solid fa-square-parking text-slate-400 mr-1"></i>停車費 (NT$)
-            </label>
-            <div class="relative">
-              <input 
-                type="number" 
-                min="0" 
-                step="1" 
-                v-model.number="parkingFee" 
-                placeholder="無則留空或填 0" 
-                class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition text-sm pr-12">
-              <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Breakdown Details Card -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
-          <div class="flex justify-between items-center text-xs text-slate-600">
-            <span class="flex items-center gap-1.5">
-              <i class="fa-solid fa-wrench text-slate-400"></i>目前單位車輛耗損折舊：
-            </span>
-            <span class="font-semibold text-slate-800">NT$ {{ totalLossPerKm.toFixed(3) }} / km</span>
-          </div>
-
-          <div class="flex justify-between items-center text-xs text-slate-600">
-            <span>合計公里出差費率：</span>
-            <span class="font-semibold text-slate-800">
-              NT$ {{ (fuelEfficiency > 0 ? ((fuelPrice || 0) / fuelEfficiency + totalLossPerKm) : 0).toFixed(3) }} / km 
-              (按 {{ fuelEfficiency || 35 }}km/L 折算)
-            </span>
-          </div>
         </div>
       </section>
 
-      <!-- Summary Panel -->
-      <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between border border-slate-800">
-        <div>
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-receipt text-yellow-400"></i>費用試算總結
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+          <div class="flex justify-between items-center border-b pb-3 border-slate-100">
+            <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">
+              新增單筆出差資訊
             </h2>
-            <span class="text-[10px] uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">Auto Calc</span>
+            <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600 transition">
+              <i class="fa-solid fa-arrow-rotate-left mr-1"></i>重置欄位
+            </button>
           </div>
-          
-          <div class="space-y-3.5 text-xs sm:text-sm">
-            <!-- 出差日期顯示 -->
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">出差日期</span>
-              <span class="font-semibold font-mono text-slate-200">{{ inputDate || '未填寫' }}</span>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">出差事由 / 說明</label>
+            <input type="text" v-model="purpose" placeholder="例如：拜訪客戶 XYZ 公司..." class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">出差日期</label>
+              <input type="date" v-model="inputDate" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </div>
 
-            <!-- 出差事由顯示 -->
-            <div class="flex justify-between items-start">
-              <span class="text-slate-400 shrink-0">出差事由</span>
-              <span class="font-medium text-slate-200 text-right truncate max-w-[180px]" :title="purpose">
-                {{ purpose || '未填寫' }}
-              </span>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">選用汽油種類</label>
+              <select v-model="selectedFuelType" class="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="92">92 無鉛汽油</option>
+                <option value="95">95 無鉛汽油</option>
+                <option value="98">98 無鉛汽油</option>
+              </select>
             </div>
 
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">預估使用汽油量</span>
-              <span class="font-semibold text-slate-200">{{ estimatedLiters.toFixed(2) }} 升</span>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">當週油價 (NT$)</label>
+              <div class="relative">
+                <input type="number" step="0.1" min="0" v-model.number="fuelPrice" class="w-full p-3 border border-blue-200 bg-blue-50/20 rounded-xl text-sm font-semibold text-slate-800 pr-14 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">元/升</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-blue-500"></i>
+              <span>關鍵字：<strong class="text-slate-800 font-mono">「中油 {{ inputDate }} 當週 {{ selectedFuelType }}無鉛汽油 歷史油價」</strong></span>
+            </div>
+            <a :href="googleSearchUrl" target="_blank" class="px-3 py-1 bg-blue-600 text-white font-medium rounded-lg text-xs hover:bg-blue-700 transition flex items-center gap-1 shrink-0">
+              <i class="fa-solid fa-magnifying-glass"></i>搜尋油價
+            </a>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">機車平均油耗預設</label>
+              <select v-model="fuelPreset" @change="onPresetChange" class="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="45">省油型 (45 km/L)</option>
+                <option value="35">標準型 (35 km/L)</option>
+                <option value="25">耗油型/重機 (25 km/L)</option>
+                <option value="custom">自訂油耗數值</option>
+              </select>
             </div>
 
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">油價成本</span>
-              <span class="font-semibold">NT$ {{ fuelSubTotal.toFixed(1) }}</span>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">每公升可行駛里程 (km/L)</label>
+              <div class="relative">
+                <input type="number" min="1" step="0.1" v-model.number="fuelEfficiency" :disabled="fuelPreset !== 'custom'" class="w-full p-3 border border-slate-300 rounded-xl text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">往返總里程 (km)</label>
+              <input type="number" min="0" step="0.1" v-model.number="distance" placeholder="例如: 28.5" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">停車費 (NT$)</label>
+              <input type="number" min="0" step="1" v-model.number="parkingFee" placeholder="0" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+          </div>
+
+          <button @click="addRecord" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-sm">
+            <i class="fa-solid fa-plus"></i>
+            新增此筆紀錄
+          </button>
+        </section>
+
+        <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 rounded-2xl shadow-md flex flex-col justify-between border border-slate-800">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-yellow-400"></i>當筆試算 preview
+              </h2>
             </div>
             
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">車輛耗損折舊成本</span>
-              <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
+            <div class="space-y-3.5 text-xs sm:text-sm">
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">當前耗損折舊成本</span>
+                <span class="font-semibold text-slate-200">NT$ {{ totalLossPerKm.toFixed(3) }} / km</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">預估汽油使用量</span>
+                <span class="font-semibold text-slate-200">{{ estimatedLiters.toFixed(2) }} 升</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">油價成本小計</span>
+                <span class="font-semibold">NT$ {{ fuelSubTotal.toFixed(1) }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">折舊成本小計</span>
+                <span class="font-semibold">NT$ {{ lossSubTotal.toFixed(1) }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">停車費（直接併入給付）</span>
+                <span class="font-semibold text-slate-200">NT$ {{ (parkingFee || 0).toFixed(0) }}</span>
+              </div>
+              <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span>給付小計 (進位)</span>
+                <span class="text-base font-bold text-yellow-400 font-mono">NT$ {{ Math.ceil(totalCost) }}</span>
+              </div>
             </div>
+          </div>
 
-            <div class="flex justify-between items-center">
-              <span class="text-slate-400">停車費</span>
-              <span class="font-semibold text-slate-200">NT$ {{ (parkingFee || 0).toFixed(0) }}</span>
+          <div class="mt-8 pt-4 border-t border-slate-800 bg-slate-800/50 p-4 rounded-xl space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-300">當月報銷筆數：</span>
+              <span class="font-bold text-slate-100 font-mono">{{ records.length }} 筆</span>
             </div>
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-300">當月總里程：</span>
+              <span class="font-bold text-slate-100 font-mono">{{ monthTotalKm.toFixed(1) }} km</span>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60 flex justify-between items-baseline">
+              <span class="text-xs font-bold text-yellow-400">當月總金額：</span>
+              <span class="text-2xl font-extrabold text-yellow-400 font-mono">NT$ {{ monthTotalAmount }}</span>
+            </div>
+          </div>
+        </section>
 
-            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
-              <span>出差總里程</span>
-              <span class="font-mono text-slate-200">{{ distance || 0 }} km</span>
-            </div>
+      </div>
+
+      <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3 border-slate-100">
+          <div>
+            <h2 class="text-base font-bold text-slate-800 border-l-4 border-emerald-600 pl-3">
+              {{ targetMonth }} 月份差旅明細
+            </h2>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button @click="clearMonthRecords" v-if="records.length > 0" class="px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition">
+              清空明細
+            </button>
+            <button @click="exportToExcel" :disabled="records.length === 0" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-semibold rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
+              <i class="fa-solid fa-file-excel"></i>
+              匯出 Excel 月總表
+            </button>
           </div>
         </div>
 
-        <div class="mt-8 pt-4 border-t border-slate-800 space-y-4">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-400">總應給付報銷金額 (無條件進位)</span>
-            <span class="text-[11px] text-yellow-400/80">NTD (TWD)</span>
-          </div>
-          <div class="text-4xl font-extrabold text-yellow-400 tracking-tight flex items-baseline gap-1">
-            <span class="text-xl font-bold">NT$</span>
-            <span>{{ Math.ceil(totalCost) }}</span>
-          </div>
-
-          <!-- 匯出 Excel 按鈕 -->
-          <button 
-            @click="exportToExcel" 
-            class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs transition duration-200 flex items-center justify-center gap-2 shadow-sm">
-            <i class="fa-solid fa-file-excel text-sm"></i>
-            匯出明細至 Excel
-          </button>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs sm:text-sm border-collapse">
+            <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
+              <tr>
+                <th class="py-3 px-3">出差日期</th>
+                <th class="py-3 px-3">出差事由</th>
+                <th class="py-3 px-3 text-right">里程(km)</th>
+                <th class="py-3 px-3 text-right">折舊單價/km</th>
+                <th class="py-3 px-3 text-right">油耗與折舊成本</th>
+                <th class="py-3 px-3 text-right">停車費</th>
+                <th class="py-3 px-3 text-right">給付金額</th>
+                <th class="py-3 px-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-if="records.length === 0">
+                <td colspan="8" class="py-8 text-center text-slate-400">目前尚無任何紀錄</td>
+              </tr>
+              <tr v-for="(item, index) in records" :key="index" class="hover:bg-slate-50/80 transition">
+                <td class="py-2.5 px-3 font-mono">{{ item.date }}</td>
+                <td class="py-2.5 px-3">{{ item.purpose }}</td>
+                <td class="py-2.5 px-3 text-right font-mono">{{ item.distance }}</td>
+                <td class="py-2.5 px-3 text-right font-mono text-slate-500">NT$ {{ item.lossPerKm.toFixed(3) }}</td>
+                <td class="py-2.5 px-3 text-right font-mono">NT$ {{ item.calcCost }}</td>
+                <td class="py-2.5 px-3 text-right font-mono">NT$ {{ item.parkingFee }}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-600">NT$ {{ item.finalPay }}</td>
+                <td class="py-2.5 px-3 text-center">
+                  <button @click="deleteRecord(index)" class="text-rose-400 hover:text-rose-600 p-1" title="刪除">
+                    <i class="fa-regular fa-trash-can"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+            <!-- 底部 TOTAL 月份合計列 -->
+            <tfoot v-if="records.length > 0" class="bg-slate-100/90 border-t-2 border-slate-300 font-bold text-slate-800">
+              <tr>
+                <td class="py-3 px-3 font-mono text-slate-800">TOTAL 當月合計</td>
+                <td class="py-3 px-3"></td>
+                <td class="py-3 px-3 text-right font-mono text-blue-700">{{ monthTotalKm.toFixed(1) }}</td>
+                <td class="py-3 px-3"></td>
+                <td class="py-3 px-3 text-right font-mono">NT$ {{ monthTotalCalcCost.toFixed(1) }}</td>
+                <td class="py-3 px-3 text-right font-mono">NT$ {{ monthTotalParkingFee }}</td>
+                <td class="py-3 px-3 text-right font-mono text-blue-700 text-base">NT$ {{ monthTotalAmount }}</td>
+                <td class="py-3 px-3"></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </section>
 
     </main>
 
     <main v-if="activeTab === 'settings'" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 border-slate-100">
+      <div class="flex justify-between items-center border-b pb-3 border-slate-100">
         <div>
-          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">
-            耗損項目與折舊設定
-          </h2>
-          <p class="text-xs text-slate-500 mt-0.5">自訂各項耗材單價與更換週期，系統將自動計算每公里平均成本。</p>
+          <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">預設耗損與折舊參數</h2>
+          <p class="text-xs text-slate-500 mt-0.5">修改後的預設值會作為未來新增紀錄時的基準。</p>
         </div>
-        <button 
-          @click="resetDefaults" 
-          class="text-xs text-rose-600 hover:text-rose-700 font-medium border border-rose-200 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition">
-          <i class="fa-solid fa-rotate-left mr-1"></i>恢復預設參數
+        <button @click="resetDefaults" class="text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg transition">
+          恢復預設值
         </button>
       </div>
 
-      <!-- Maintenance Items Table -->
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs sm:text-sm">
           <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
             <tr>
               <th class="py-3 px-3">耗損 / 折舊項目</th>
               <th class="py-3 px-3">單次費用 (NT$)</th>
-              <th class="py-3 px-3">更換/壽命週期 (km)</th>
+              <th class="py-3 px-3">壽命週期 (km)</th>
               <th class="py-3 px-3 text-right">每公里分派成本</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="(item, index) in maintenanceItems" :key="index" class="hover:bg-slate-50/80 transition">
+            <tr v-for="(item, index) in defaultMaintenanceItems" :key="index">
               <td class="py-2.5 px-3 font-medium text-slate-700">{{ item.name }}</td>
               <td class="py-2.5 px-3">
-                <input 
-                  type="number" 
-                  min="0" 
-                  v-model.number="item.cost" 
-                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                <input type="number" min="0" v-model.number="item.cost" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
               </td>
               <td class="py-2.5 px-3">
-                <input 
-                  type="number" 
-                  min="1" 
-                  v-model.number="item.interval" 
-                  class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                <input type="number" min="1" v-model.number="item.interval" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
               </td>
-              <td class="py-2.5 px-3 text-right font-mono font-medium text-slate-700">
+              <td class="py-2.5 px-3 text-right font-mono">
                 NT$ {{ (item.interval > 0 ? (item.cost / item.interval) : 0).toFixed(4) }}
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <div class="mt-4 p-4 bg-blue-50/60 border border-blue-100 text-blue-900 rounded-xl flex justify-between items-center">
-        <span class="text-xs sm:text-sm font-semibold">合計每公里車輛固定耗損折舊成本：</span>
-        <span class="text-base sm:text-lg font-bold font-mono text-blue-700">NT$ {{ totalLossPerKm.toFixed(4) }} / km</span>
       </div>
     </main>
 
@@ -368,21 +336,25 @@
 
         const getTodayStr = () => {
           const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         };
 
+        const getCurrentMonthStr = () => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const targetMonth = ref(getCurrentMonthStr());
         const purpose = ref('');
         const inputDate = ref(getTodayStr());
         const selectedFuelType = ref('95');
         const fuelPrice = ref(31.0);
         const distance = ref(0);
         const parkingFee = ref(0);
-
         const fuelPreset = ref('35');
         const fuelEfficiency = ref(35.0);
+
+        const records = ref([]);
 
         const googleSearchUrl = computed(() => {
           const query = `中油 ${inputDate.value} 當週 ${selectedFuelType.value}無鉛汽油 歷史油價`;
@@ -395,7 +367,7 @@
           }
         };
 
-        const defaultItems = [
+        const initialItems = [
           { name: "機油", cost: 400, interval: 1000 },
           { name: "齒輪油", cost: 50, interval: 2500 },
           { name: "空氣濾清器", cost: 300, interval: 4000 },
@@ -409,105 +381,228 @@
           { name: "購車本體折舊", cost: 70000, interval: 60000 }
         ];
 
-        const maintenanceItems = ref(JSON.parse(JSON.stringify(defaultItems)));
+        const defaultMaintenanceItems = ref(JSON.parse(JSON.stringify(initialItems)));
 
         const totalLossPerKm = computed(() => {
-          return maintenanceItems.value.reduce((sum, item) => {
-            return sum + (item.interval > 0 ? (item.cost / item.interval) : 0);
-          }, 0);
+          return defaultMaintenanceItems.value.reduce((sum, item) => sum + (item.interval > 0 ? (item.cost / item.interval) : 0), 0);
         });
 
-        const estimatedLiters = computed(() => {
-          if (!distance.value || distance.value <= 0 || !fuelEfficiency.value || fuelEfficiency.value <= 0) return 0;
-          return distance.value / fuelEfficiency.value;
-        });
+        const estimatedLiters = computed(() => (distance.value && fuelEfficiency.value) ? distance.value / fuelEfficiency.value : 0);
+        const fuelSubTotal = computed(() => estimatedLiters.value * (fuelPrice.value || 0));
+        const lossSubTotal = computed(() => (distance.value || 0) * totalLossPerKm.value);
+        const totalCost = computed(() => fuelSubTotal.value + lossSubTotal.value + (parkingFee.value || 0));
 
-        const fuelSubTotal = computed(() => {
-          return estimatedLiters.value * (fuelPrice.value || 0);
-        });
+        // 月份合計
+        const monthTotalKm = computed(() => records.value.reduce((sum, item) => sum + (Number(item.distance) || 0), 0));
+        const monthTotalCalcCost = computed(() => records.value.reduce((sum, item) => sum + (Number(item.calcCost) || 0), 0));
+        const monthTotalParkingFee = computed(() => records.value.reduce((sum, item) => sum + (Number(item.parkingFee) || 0), 0));
+        const monthTotalAmount = computed(() => records.value.reduce((sum, item) => sum + (Number(item.finalPay) || 0), 0));
 
-        const lossSubTotal = computed(() => {
-          if (!distance.value || distance.value <= 0) return 0;
-          return distance.value * totalLossPerKm.value;
-        });
+        const addRecord = () => {
+          if (!distance.value || distance.value <= 0) {
+            alert('請輸入有效的出差往返總里程！');
+            return;
+          }
 
-        const totalCost = computed(() => {
-          return fuelSubTotal.value + lossSubTotal.value + (parkingFee.value || 0);
-        });
+          records.value.push({
+            date: inputDate.value,
+            purpose: purpose.value || '未填寫',
+            distance: distance.value,
+            fuelType: `${selectedFuelType.value}無鉛`,
+            fuelPrice: fuelPrice.value,
+            efficiency: fuelEfficiency.value,
+            lossPerKm: totalLossPerKm.value,
+            snapshotItems: JSON.parse(JSON.stringify(defaultMaintenanceItems.value)),
+            calcCost: (fuelSubTotal.value + lossSubTotal.value).toFixed(1),
+            parkingFee: parkingFee.value || 0,
+            finalPay: Math.ceil(totalCost.value)
+          });
 
-        // 匯出 Excel 功能
+          records.value.sort((a, b) => new Date(a.date) - new Date(b.date));
+          purpose.value = '';
+          distance.value = 0;
+          parkingFee.value = 0;
+        };
+
+        const deleteRecord = (index) => records.value.splice(index, 1);
+        const clearMonthRecords = () => { if (confirm('確定清空？')) records.value = []; };
+
+        // 匯出 Excel (已加入欄寬自動調寬保護)
         const exportToExcel = () => {
-          const finalPay = Math.ceil(totalCost.value);
-          const data = [
-            ["項目", "數值", "單位 / 備註"],
-            ["出差日期", inputDate.value || "未填寫", ""],
-            ["出差事由", purpose.value || "未填寫", ""],
-            ["出差總里程", distance.value || 0, "km"],
-            ["汽油種類", `${selectedFuelType.value} 無鉛汽油`, ""],
-            ["當週油價", fuelPrice.value || 0, "元/升"],
-            ["機車油耗", fuelEfficiency.value || 0, "km/L"],
-            ["預估用油量", Number(estimatedLiters.value.toFixed(2)), "升"],
-            ["油耗費用金額", Number(fuelSubTotal.value.toFixed(1)), "元"],
-            ["單位折舊率", Number(totalLossPerKm.value.toFixed(4)), "元/km"],
-            ["車輛耗損折舊成本", Number(lossSubTotal.value.toFixed(1)), "元"],
-            ["停車費", parkingFee.value || 0, "元"],
-            ["總計應報銷金額", finalPay, "元 (無條件進位)"]
-          ];
-
-          // 創建工作表
-          const worksheet = XLSX.utils.aoa_to_sheet(data);
-          
-          // 設定欄寬
-          worksheet['!cols'] = [
-            { wch: 20 },
-            { wch: 25 },
-            { wch: 20 }
-          ];
-
           const workbook = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(workbook, worksheet, "差旅報銷單");
 
-          // 產生檔名（機車差旅費用報銷單_日期.xlsx）
-          const fileName = `機車差旅費用報銷單_${inputDate.value || '未命名'}.xlsx`;
-          XLSX.writeFile(workbook, fileName);
+          // ------------ Sheet 1: 差旅報銷明細 ------------
+          const detailData = records.value.map(item => ({
+            "出差日期": item.date,
+            "出差事由": item.purpose,
+            "里程(km)": item.distance,
+            "汽油種類": item.fuelType,
+            "當週油價": item.fuelPrice,
+            "油耗(km/L)": item.efficiency,
+            "折舊單價(元/km)": Number(item.lossPerKm.toFixed(4)),
+            "油耗與折舊成本": Number(item.calcCost),
+            "停車費": Number(item.parkingFee),
+            "給付金額": Number(item.finalPay)
+          }));
+
+          detailData.push({
+            "出差日期": "TOTAL 當月合計",
+            "出差事由": "",
+            "里程(km)": Number(monthTotalKm.value.toFixed(1)),
+            "汽油種類": "",
+            "當週油價": "",
+            "油耗(km/L)": "",
+            "折舊單價(元/km)": "",
+            "油耗與折舊成本": Number(monthTotalCalcCost.value.toFixed(1)),
+            "停車費": monthTotalParkingFee.value,
+            "給付金額": monthTotalAmount.value
+          });
+
+          const ws1 = XLSX.utils.json_to_sheet(detailData);
+
+          // 【關鍵設定】：手動設置寬裕的欄寬，防止中文字被剪裁吃字
+          ws1['!cols'] = [
+            { wch: 18 }, // 出差日期 / TOTAL 當月合計
+            { wch: 25 }, // 出差事由
+            { wch: 12 }, // 里程(km)
+            { wch: 12 }, // 汽油種類
+            { wch: 12 }, // 當週油價
+            { wch: 12 }, // 油耗(km/L)
+            { wch: 18 }, // 折舊單價(元/km)
+            { wch: 18 }, // 油耗與折舊成本
+            { wch: 12 }, // 停車費
+            { wch: 14 }  // 給付金額
+          ];
+
+          XLSX.utils.book_append_sheet(workbook, ws1, "差旅報銷明細");
+
+          // ------------ Sheet 2: 耗損與折舊參數明細 ------------
+          const paramSheetData = [];
+
+          records.value.forEach((rec, recIdx) => {
+            paramSheetData.push({
+              "A": `【出差日期：${rec.date}】`,
+              "B": `事由：${rec.purpose}`,
+              "C": "",
+              "D": ""
+            });
+
+            paramSheetData.push({
+              "A": "耗損 / 折舊項目",
+              "B": "單次費用 (NT$)",
+              "C": "壽命週期 (km)",
+              "D": "每公里分派成本 (元/km)"
+            });
+
+            let currentTotalLoss = 0;
+
+            rec.snapshotItems.forEach(p => {
+              const unitCost = p.interval > 0 ? (p.cost / p.interval) : 0;
+              currentTotalLoss += unitCost;
+
+              paramSheetData.push({
+                "A": p.name,
+                "B": p.cost,
+                "C": p.interval,
+                "D": Number(unitCost.toFixed(4))
+              });
+            });
+
+            paramSheetData.push({
+              "A": "【小計：固定折舊單價】",
+              "B": "",
+              "C": "",
+              "D": Number(currentTotalLoss.toFixed(4))
+            });
+
+            if (recIdx < records.value.length - 1) {
+              paramSheetData.push({ "A": "", "B": "", "C": "", "D": "" });
+            }
+          });
+
+          const ws2 = XLSX.utils.json_to_sheet(paramSheetData, { skipHeader: true });
+          ws2['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 28 }];
+          XLSX.utils.book_append_sheet(workbook, ws2, "耗損與折舊參數明細");
+
+          XLSX.writeFile(workbook, `機車差旅費用月總表_${targetMonth.value}.xlsx`);
+        };
+
+        // 載入 Excel
+        const importExcel = (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const sheet1 = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+              const sheet2Data = workbook.SheetNames.length > 1 ? XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[1]], { header: "A" }) : [];
+
+              const importedRecords = sheet1
+                .filter(row => row['出差日期'] && !row['出差日期'].includes('TOTAL'))
+                .map(row => {
+                  const recDate = row['出差日期'];
+                  let snapshotItems = [];
+
+                  const startIdx = sheet2Data.findIndex(r => r.A && r.A.includes(`【出差日期：${recDate}】`));
+
+                  if (startIdx !== -1) {
+                    snapshotItems = initialItems.map((item, pIdx) => {
+                      const itemRow = sheet2Data[startIdx + 2 + pIdx];
+                      return {
+                        name: item.name,
+                        cost: itemRow ? Number(itemRow.B) || item.cost : item.cost,
+                        interval: itemRow ? Number(itemRow.C) || item.interval : item.interval
+                      };
+                    });
+                  } else {
+                    snapshotItems = JSON.parse(JSON.stringify(initialItems));
+                  }
+
+                  return {
+                    date: recDate,
+                    purpose: row['出差事由'] || '',
+                    distance: Number(row['里程(km)']) || 0,
+                    fuelType: row['汽油種類'] || '95無鉛',
+                    fuelPrice: Number(row['當週油價']) || 0,
+                    efficiency: Number(row['油耗(km/L)']) || 35,
+                    lossPerKm: Number(row['折舊單價(元/km)']) || 0,
+                    snapshotItems: snapshotItems,
+                    calcCost: Number(row['油耗與折舊成本']) || 0,
+                    parkingFee: Number(row['停車費']) || 0,
+                    finalPay: Number(row['給付金額']) || 0
+                  };
+                });
+
+              records.value = importedRecords;
+              alert(`成功載入 ${importedRecords.length} 筆資料！`);
+            } catch (err) {
+              alert('解析檔案失敗，請確認檔案格式！');
+            }
+          };
+          reader.readAsArrayBuffer(file);
         };
 
         const resetInputs = () => {
           purpose.value = '';
           inputDate.value = getTodayStr();
-          selectedFuelType.value = '95';
           distance.value = 0;
           parkingFee.value = 0;
-          fuelPrice.value = 31.0;
-          fuelPreset.value = '35';
-          fuelEfficiency.value = 35.0;
         };
 
         const resetDefaults = () => {
-          maintenanceItems.value = JSON.parse(JSON.stringify(defaultItems));
+          defaultMaintenanceItems.value = JSON.parse(JSON.stringify(initialItems));
         };
 
         return {
-          activeTab,
-          purpose,
-          inputDate,
-          selectedFuelType,
-          fuelPrice,
-          fuelPreset,
-          fuelEfficiency,
-          distance,
-          parkingFee,
-          googleSearchUrl,
-          maintenanceItems,
-          totalLossPerKm,
-          estimatedLiters,
-          fuelSubTotal,
-          lossSubTotal,
-          totalCost,
-          onPresetChange,
-          exportToExcel,
-          resetInputs,
-          resetDefaults
+          activeTab, targetMonth, purpose, inputDate, selectedFuelType, fuelPrice,
+          fuelPreset, fuelEfficiency, distance, parkingFee, records, monthTotalKm,
+          monthTotalCalcCost, monthTotalParkingFee, monthTotalAmount, googleSearchUrl,
+          defaultMaintenanceItems, totalLossPerKm, estimatedLiters, fuelSubTotal,
+          lossSubTotal, totalCost, onPresetChange, addRecord, deleteRecord,
+          clearMonthRecords, importExcel, exportToExcel, resetInputs, resetDefaults
         };
       }
     }).mount('#app');
