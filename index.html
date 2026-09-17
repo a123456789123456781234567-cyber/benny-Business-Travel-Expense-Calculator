@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>機車差旅計價系統 (自動調整 Excel 欄寬版)</title>
+  <title>機車差旅計價系統</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -24,7 +24,7 @@
             <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
           </div>
           <p class="text-xs sm:text-sm text-slate-500 mt-1">
-            第一頁純淨報銷明细（含適當 Excel 欄寬設定），第二頁全攤開每筆紀錄專屬 11 項參數。
+            第一頁純淨報銷明細（含底端總計），第二頁全攤開每筆紀錄專屬 11 項參數並自動空行。
           </p>
         </div>
 
@@ -427,7 +427,7 @@
         const deleteRecord = (index) => records.value.splice(index, 1);
         const clearMonthRecords = () => { if (confirm('確定清空？')) records.value = []; };
 
-        // 匯出 Excel (已加入欄寬自動調寬保護)
+        // 匯出 Excel (移除紀錄編號欄位)
         const exportToExcel = () => {
           const workbook = XLSX.utils.book_new();
 
@@ -459,21 +459,6 @@
           });
 
           const ws1 = XLSX.utils.json_to_sheet(detailData);
-
-          // 【關鍵設定】：手動設置寬裕的欄寬，防止中文字被剪裁吃字
-          ws1['!cols'] = [
-            { wch: 18 }, // 出差日期 / TOTAL 當月合計
-            { wch: 25 }, // 出差事由
-            { wch: 12 }, // 里程(km)
-            { wch: 12 }, // 汽油種類
-            { wch: 12 }, // 當週油價
-            { wch: 12 }, // 油耗(km/L)
-            { wch: 18 }, // 折舊單價(元/km)
-            { wch: 18 }, // 油耗與折舊成本
-            { wch: 12 }, // 停車費
-            { wch: 14 }  // 給付金額
-          ];
-
           XLSX.utils.book_append_sheet(workbook, ws1, "差旅報銷明細");
 
           // ------------ Sheet 2: 耗損與折舊參數明細 ------------
@@ -521,7 +506,7 @@
           });
 
           const ws2 = XLSX.utils.json_to_sheet(paramSheetData, { skipHeader: true });
-          ws2['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 28 }];
+          ws2['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 25 }];
           XLSX.utils.book_append_sheet(workbook, ws2, "耗損與折舊參數明細");
 
           XLSX.writeFile(workbook, `機車差旅費用月總表_${targetMonth.value}.xlsx`);
