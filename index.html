@@ -34,7 +34,6 @@
       <form @submit.prevent="handleLogin" class="space-y-4">
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">電子郵件 / 帳號</label>
-          <!-- 已改為 type="text"，不再強制檢查 Email 格式 -->
           <input type="text" v-model="authForm.email" required placeholder="請輸入 Email 或帳號" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
         <div>
@@ -57,7 +56,7 @@
               <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">機車差旅計價系統</h1>
             </div>
             <p class="text-xs sm:text-sm text-slate-500 mt-1">
-              第一頁純淨報銷明細（含適當 Excel 欄寬設定），第二頁全攤開每筆紀錄專屬 11 項參數。
+              第一頁純淨報銷明細，第二頁全攤開每筆紀錄專屬 11 項參數。
             </p>
           </div>
 
@@ -67,6 +66,7 @@
                 <i class="fa-solid fa-circle-user text-blue-600 text-base"></i>
                 <span>使用者：<strong class="font-bold text-slate-900">{{ currentUser.email || currentUser.uid }}</strong>
                   <span v-if="isAdmin" class="ml-1 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 font-bold rounded">最高權限</span>
+                  <span v-else class="ml-1 px-1.5 py-0.5 text-[10px] bg-slate-200 text-slate-700 font-bold rounded">一般員工</span>
                 </span>
               </div>
               <div class="flex items-center gap-2 border-l pl-3 border-slate-300">
@@ -88,6 +88,13 @@
                 :class="['px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition flex items-center gap-1.5', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
                 <i class="fa-solid fa-sliders"></i>
                 耗損參數
+              </button>
+              <button 
+                v-if="isAdmin"
+                @click="activeTab = 'users'"
+                :class="['px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition flex items-center gap-1.5', activeTab === 'users' ? 'bg-white text-purple-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
+                <i class="fa-solid fa-users-gear"></i>
+                帳號管理
               </button>
             </nav>
           </div>
@@ -335,7 +342,6 @@
           </button>
         </div>
 
-        <!-- 機車平均油耗設定 -->
         <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
           <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             <i class="fa-solid fa-gas-pump text-blue-600"></i> 機車油耗預設參數
@@ -388,15 +394,81 @@
           </table>
         </div>
       </main>
+
+      <!-- 頁籤三：管理者專用帳號管理區塊 -->
+      <main v-if="activeTab === 'users' && isAdmin" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+        <div class="border-b pb-3 border-slate-100">
+          <h2 class="text-base font-bold text-purple-900 border-l-4 border-purple-600 pl-3 flex items-center gap-2">
+            <i class="fa-solid fa-user-plus"></i> 管理者建立新帳號
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">建立後新使用者將會直接連動並寫入至 Firebase Authentication 與 Firestore 資料庫。</p>
+        </div>
+
+        <div v-if="newUserMsg" :class="['p-3 rounded-xl text-xs flex items-center gap-2', newUserIsError ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200']">
+          <i :class="['fa-solid', newUserIsError ? 'fa-circle-exclamation' : 'fa-circle-check']"></i>
+          <span>{{ newUserMsg }}</span>
+        </div>
+
+        <form @submit.prevent="createUserByAdmin" class="grid grid-cols-1 sm:grid-cols-4 gap-4 max-w-3xl">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">使用者 Email / 帳號</label>
+            <input type="text" v-model="newUserForm.email" required placeholder="例: user1" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">設定初始密碼</label>
+            <input type="password" v-model="newUserForm.password" required placeholder="至少 6 位數" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">帳號權限</label>
+            <select v-model="newUserForm.role" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none">
+              <option value="user">一般員工 (User)</option>
+              <option value="admin">管理者 (Admin)</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button type="submit" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition shadow-sm">
+              <i class="fa-solid fa-user-plus mr-1"></i>建立帳號
+            </button>
+          </div>
+        </form>
+
+        <div class="border-t pt-4">
+          <h3 class="text-xs font-bold text-slate-700 mb-3">現有使用者列表</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold">
+                <tr>
+                  <th class="py-2.5 px-3">帳號 Email</th>
+                  <th class="py-2.5 px-3">角色權限</th>
+                  <th class="py-2.5 px-3">使用者 UID</th>
+                  <th class="py-2.5 px-3">建立時間</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="user in allUsers" :key="user.uid">
+                  <td class="py-2 px-3 font-medium text-slate-800">{{ user.email }}</td>
+                  <td class="py-2 px-3">
+                    <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600']">
+                      {{ user.role === 'admin' ? '管理者 (Admin)' : '一般員工 (User)' }}
+                    </span>
+                  </td>
+                  <td class="py-2 px-3 font-mono text-slate-400 text-xs">{{ user.uid }}</td>
+                  <td class="py-2 px-3 text-slate-500 text-xs">{{ user.createdAt }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
     </template>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // 已替換為您的專屬 Firebase 金鑰配置
     const firebaseConfig = {
       apiKey: "AIzaSyDIC-j_HHmCey4RbmM4sckK5u4v0OP9Yks",
       authDomain: "travel-expense-calculato-b4125.firebaseapp.com",
@@ -410,6 +482,9 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+    const secondaryAuth = getAuth(secondaryApp);
+
     const { createApp, ref, computed, watch, onMounted } = Vue;
 
     createApp({
@@ -419,6 +494,11 @@
         const authError = ref('');
         const authForm = ref({ email: '', password: '' });
         const isAdmin = ref(false);
+
+        const newUserForm = ref({ email: '', password: '', role: 'user' });
+        const newUserMsg = ref('');
+        const newUserIsError = ref(false);
+        const allUsers = ref([]);
 
         const initialItems = [
           { name: "機油", cost: 400, interval: 1000 },
@@ -443,10 +523,22 @@
         onAuthStateChanged(auth, async (user) => {
           currentUser.value = user;
           if (user) {
+            // 從 Firestore 讀取使用者 Role 欄位來判斷權限
+            const userDocRef = doc(db, "users", user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists() && userDocSnap.data().role === 'admin') {
+              isAdmin.value = true;
+              fetchAllUsers();
+            } else {
+              isAdmin.value = false;
+            }
+
             fetchUserSettings(user.uid);
             subscribeRecords(user.uid);
           } else {
             records.value = [];
+            isAdmin.value = false;
             if (unsubscribeRecords) unsubscribeRecords();
           }
         });
@@ -454,7 +546,6 @@
         const handleLogin = async () => {
           authError.value = '';
           try {
-            // 如果輸入純帳號名稱且未含 @，補上預設網域以滿足 Firebase Auth 的 Email 格式驗證
             let loginEmail = authForm.value.email.trim();
             if (!loginEmail.includes('@')) {
               loginEmail = `${loginEmail}@yourdomain.com`;
@@ -471,7 +562,44 @@
           await signOut(auth);
         };
 
-        // 即時監聽 Firestore 中的差旅紀錄
+        // 管理者專用：直接在程式內部建立 Firebase 帳號
+        const createUserByAdmin = async () => {
+          newUserMsg.value = '';
+          newUserIsError.value = false;
+
+          try {
+            let regEmail = newUserForm.value.email.trim();
+            if (!regEmail.includes('@')) {
+              regEmail = `${regEmail}@yourdomain.com`;
+            }
+
+            const res = await createUserWithEmailAndPassword(secondaryAuth, regEmail, newUserForm.value.password);
+            const newUser = res.user;
+
+            // 將使用者角色 role 寫入 Firestore
+            await setDoc(doc(db, "users", newUser.uid), {
+              uid: newUser.uid,
+              email: regEmail,
+              role: newUserForm.value.role,
+              createdAt: new Date().toLocaleString('zh-TW')
+            });
+
+            await signOut(secondaryAuth);
+
+            newUserMsg.value = `成功建立帳號：${regEmail} (${newUserForm.value.role === 'admin' ? '管理者' : '一般員工'})`;
+            newUserForm.value = { email: '', password: '', role: 'user' };
+            fetchAllUsers();
+          } catch (err) {
+            newUserIsError.value = true;
+            newUserMsg.value = '建立失敗：' + err.message;
+          }
+        };
+
+        const fetchAllUsers = async () => {
+          const snapshot = await getDocs(collection(db, "users"));
+          allUsers.value = snapshot.docs.map(doc => doc.data());
+        };
+
         const subscribeRecords = (uid) => {
           if (unsubscribeRecords) unsubscribeRecords();
           const q = query(collection(db, "travel_records"), where("uid", "==", uid));
@@ -480,7 +608,6 @@
           });
         };
 
-        // 讀取設定檔
         const fetchUserSettings = async (uid) => {
           const docRef = doc(db, "user_settings", uid);
           const docSnap = await getDoc(docRef);
@@ -489,7 +616,6 @@
           }
         };
 
-        // 儲存設定檔至 Firestore
         const saveUserSettings = async () => {
           if (!currentUser.value) return;
           const docRef = doc(db, "user_settings", currentUser.value.uid);
@@ -501,7 +627,6 @@
           await saveUserSettings();
         };
 
-        // 表單與計算邏輯
         const getCurrentMonthStr = () => {
           const now = new Date();
           return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -659,6 +784,7 @@
 
         return {
           activeTab, currentUser, authError, authForm, isAdmin, handleLogin, handleLogout,
+          newUserForm, newUserMsg, newUserIsError, allUsers, createUserByAdmin,
           targetMonth, purpose, inputDate, selectedFuelType, fuelPrice, fuelPreset, fuelEfficiency,
           distance, parkingFee, editingId, defaultMaintenanceItems, googleSearchUrl, totalLossPerKm,
           estimatedLiters, fuelSubTotal, lossSubTotal, totalCost, filteredRecords, monthTotalKm,
