@@ -23,7 +23,7 @@
           <i class="fa-solid fa-motorcycle text-3xl"></i>
         </div>
         <h2 class="text-2xl font-black text-slate-800">機車差旅計價系統</h2>
-        <p class="text-xs text-slate-500 mt-2">請輸入您的帳號與密碼以登入 Firebase 系統</p>
+        <p class="text-xs text-slate-500 mt-2">請輸入您的帳號密碼以登入系統</p>
       </div>
 
       <div v-if="authError" class="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs flex items-center gap-2">
@@ -33,9 +33,8 @@
 
       <form @submit.prevent="handleLogin" class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">電子郵件 / 帳號</label>
-          <!-- 已改為 type="text"，不再強制檢查 Email 格式 -->
-          <input type="text" v-model="authForm.email" required placeholder="請輸入 Email 或帳號" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <label class="block text-xs font-bold text-slate-600 mb-1">使用者名稱 / 帳號</label>
+          <input type="text" v-model="authForm.username" required placeholder="請輸入帳號" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">密碼</label>
@@ -65,11 +64,14 @@
             <div class="flex items-center justify-between gap-3 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
               <div class="flex items-center gap-2 text-xs text-slate-700">
                 <i class="fa-solid fa-circle-user text-blue-600 text-base"></i>
-                <span>使用者：<strong class="font-bold text-slate-900">{{ currentUser.email || currentUser.uid }}</strong>
+                <span>使用者：<strong class="font-bold text-slate-900">{{ currentUser }}</strong>
                   <span v-if="isAdmin" class="ml-1 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 font-bold rounded">最高權限</span>
                 </span>
               </div>
               <div class="flex items-center gap-2 border-l pl-3 border-slate-300">
+                <button @click="openAccountModal" class="text-xs text-slate-600 hover:text-blue-600 font-semibold transition" title="修改帳號與密碼">
+                  <i class="fa-solid fa-user-gear mr-1"></i>帳號設定
+                </button>
                 <button @click="handleLogout" class="text-xs text-rose-600 hover:text-rose-800 font-semibold transition">
                   <i class="fa-solid fa-right-from-bracket mr-1"></i>登出
                 </button>
@@ -88,6 +90,13 @@
                 :class="['px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition flex items-center gap-1.5', activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900']">
                 <i class="fa-solid fa-sliders"></i>
                 耗損參數
+              </button>
+              <button 
+                v-if="isAdmin"
+                @click="activeTab = 'admin'; loadAllAccounts();"
+                :class="['px-3 py-2 rounded-lg font-medium text-xs sm:text-sm transition flex items-center gap-1.5', activeTab === 'admin' ? 'bg-purple-600 text-white shadow-sm font-semibold' : 'text-purple-700 hover:bg-purple-50']">
+                <i class="fa-solid fa-user-shield"></i>
+                帳號管理
               </button>
             </nav>
           </div>
@@ -113,6 +122,12 @@
               <span class="text-xs text-slate-500 font-medium">報銷月份：</span>
               <input type="month" v-model="targetMonth" class="bg-transparent text-xs font-bold text-blue-600 focus:outline-none">
             </div>
+
+            <label class="cursor-pointer px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition flex items-center gap-2 border border-slate-300">
+              <i class="fa-solid fa-folder-open text-amber-600"></i>
+              載入 Excel 月總表
+              <input type="file" accept=".xlsx, .xls" class="hidden" @change="importExcel" />
+            </label>
           </div>
         </section>
 
@@ -121,10 +136,10 @@
           <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
             <div class="flex justify-between items-center border-b pb-3 border-slate-100">
               <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">
-                {{ editingId ? '編輯單筆出差資訊' : '新增單筆出差資訊' }}
+                {{ editingIndex !== null ? '編輯單筆出差資訊' : '新增單筆出差資訊' }}
               </h2>
               <div class="flex items-center gap-3">
-                <button v-if="editingId" @click="cancelEdit" class="text-xs text-rose-500 hover:text-rose-700 font-semibold transition">
+                <button v-if="editingIndex !== null" @click="cancelEdit" class="text-xs text-rose-500 hover:text-rose-700 font-semibold transition">
                   <i class="fa-solid fa-xmark mr-1"></i>取消編輯
                 </button>
                 <button @click="resetInputs" class="text-xs text-slate-400 hover:text-slate-600 transition">
@@ -184,11 +199,11 @@
               </div>
             </div>
 
-            <button v-if="!editingId" @click="saveRecord" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-sm">
+            <button v-if="editingIndex === null" @click="addRecord" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-sm">
               <i class="fa-solid fa-plus"></i>
               新增此筆紀錄
             </button>
-            <button v-else @click="saveRecord" class="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-sm">
+            <button v-else @click="saveEditRecord" class="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-sm">
               <i class="fa-solid fa-floppy-disk"></i>
               儲存變更紀錄
             </button>
@@ -233,7 +248,7 @@
             <div class="mt-8 pt-4 border-t border-slate-800 bg-slate-800/50 p-4 rounded-xl space-y-2">
               <div class="flex justify-between items-center text-xs">
                 <span class="text-slate-300">當月報銷筆數：</span>
-                <span class="font-bold text-slate-100 font-mono">{{ filteredRecords.length }} 筆</span>
+                <span class="font-bold text-slate-100 font-mono">{{ records.length }} 筆</span>
               </div>
               <div class="flex justify-between items-center text-xs">
                 <span class="text-slate-300">當月總里程：</span>
@@ -257,7 +272,10 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <button @click="exportToExcel" :disabled="filteredRecords.length === 0" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-semibold rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
+              <button @click="clearMonthRecords" v-if="records.length > 0" class="px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition">
+                清空明細
+              </button>
+              <button @click="exportToExcel" :disabled="records.length === 0" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-semibold rounded-xl text-xs transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-file-excel"></i>
                 匯出 Excel 月總表
               </button>
@@ -279,30 +297,30 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
-                <tr v-if="filteredRecords.length === 0">
+                <tr v-if="records.length === 0">
                   <td colspan="8" class="py-8 text-center text-slate-400">目前尚無任何紀錄</td>
                 </tr>
-                <tr v-for="item in filteredRecords" :key="item.id" :class="['hover:bg-slate-50/80 transition', editingId === item.id ? 'bg-amber-50/60' : '']">
+                <tr v-for="(item, index) in records" :key="index" :class="['hover:bg-slate-50/80 transition', editingIndex === index ? 'bg-amber-50/60' : '']">
                   <td class="py-2.5 px-3 font-mono">{{ item.date }}</td>
                   <td class="py-2.5 px-3">{{ item.purpose }}</td>
                   <td class="py-2.5 px-3 text-right font-mono">{{ item.distance }}</td>
-                  <td class="py-2.5 px-3 text-right font-mono text-slate-500">NT$ {{ (item.lossPerKm || 0).toFixed(3) }}</td>
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-500">NT$ {{ item.lossPerKm.toFixed(3) }}</td>
                   <td class="py-2.5 px-3 text-right font-mono">NT$ {{ item.calcCost }}</td>
                   <td class="py-2.5 px-3 text-right font-mono">NT$ {{ item.parkingFee }}</td>
                   <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-600">NT$ {{ item.finalPay }}</td>
                   <td class="py-2.5 px-3 text-center">
                     <div class="flex items-center justify-center gap-2">
-                      <button @click="editRecord(item)" class="text-amber-500 hover:text-amber-700 p-1" title="修改">
+                      <button @click="editRecord(index)" class="text-amber-500 hover:text-amber-700 p-1" title="修改">
                         <i class="fa-regular fa-pen-to-square"></i>
                       </button>
-                      <button @click="deleteRecord(item.id)" class="text-rose-400 hover:text-rose-600 p-1" title="刪除">
+                      <button @click="deleteRecord(index)" class="text-rose-400 hover:text-rose-600 p-1" title="刪除">
                         <i class="fa-regular fa-trash-can"></i>
                       </button>
                     </div>
                   </td>
                 </tr>
               </tbody>
-              <tfoot v-if="filteredRecords.length > 0" class="bg-slate-100/90 border-t-2 border-slate-300 font-bold text-slate-800">
+              <tfoot v-if="records.length > 0" class="bg-slate-100/90 border-t-2 border-slate-300 font-bold text-slate-800">
                 <tr>
                   <td class="py-3 px-3 font-mono text-slate-800">TOTAL 當月合計</td>
                   <td class="py-3 px-3"></td>
@@ -326,11 +344,20 @@
           <div>
             <div class="flex items-center gap-2">
               <h2 class="text-base font-bold text-slate-800 border-l-4 border-blue-600 pl-3">預設耗損與折舊參數</h2>
+              <span v-if="!canEditSettings" class="px-2 py-0.5 text-[11px] bg-amber-100 text-amber-800 font-bold rounded-md flex items-center gap-1">
+                <i class="fa-solid fa-lock"></i>已鎖定 (唯讀)
+              </span>
+              <span v-else class="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-800 font-bold rounded-md flex items-center gap-1">
+                <i class="fa-solid fa-lock-open"></i>開放修改中
+              </span>
             </div>
-            <p class="text-xs text-slate-500 mt-1">修改後的預設值會即時同步至 Firebase 並作為未來新增紀錄時的基準。</p>
+            <p class="text-xs text-slate-500 mt-1">
+              <span v-if="canEditSettings">修改後的預設值會作為未來新增紀錄時的基準。</span>
+              <span v-else class="text-rose-500 font-medium"><i class="fa-solid fa-circle-exclamation mr-1"></i>權限不足：僅最高管理者或獲授權帳號可修改參數。</span>
+            </p>
           </div>
 
-          <button @click="resetDefaults" class="text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg transition">
+          <button v-if="canEditSettings" @click="resetDefaults" class="text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg transition">
             恢復預設值
           </button>
         </div>
@@ -343,7 +370,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1.5">機車平均油耗預設</label>
-              <select v-model="fuelPreset" @change="onPresetChange" class="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <select v-model="fuelPreset" @change="onPresetChange" :disabled="!canEditSettings" class="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
                 <option value="45">省油型 (45 km/L)</option>
                 <option value="35">標準型 (35 km/L)</option>
                 <option value="25">耗油型/重機 (25 km/L)</option>
@@ -354,7 +381,7 @@
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1.5">每公升可行駛里程 (km/L)</label>
               <div class="relative">
-                <input type="number" min="1" step="0.1" v-model.number="fuelEfficiency" :disabled="fuelPreset !== 'custom'" class="w-full p-3 border border-slate-300 rounded-xl text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <input type="number" min="1" step="0.1" v-model.number="fuelEfficiency" :disabled="!canEditSettings || fuelPreset !== 'custom'" class="w-full p-3 border border-slate-300 rounded-xl text-sm pr-14 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-blue-500 focus:outline-none">
                 <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
               </div>
             </div>
@@ -375,10 +402,10 @@
               <tr v-for="(item, index) in defaultMaintenanceItems" :key="index">
                 <td class="py-2.5 px-3 font-medium text-slate-700">{{ item.name }}</td>
                 <td class="py-2.5 px-3">
-                  <input type="number" min="0" v-model.number="item.cost" @change="saveUserSettings" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
+                  <input type="number" min="0" v-model.number="item.cost" :disabled="!canEditSettings" @change="saveUserSettings" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
                 </td>
                 <td class="py-2.5 px-3">
-                  <input type="number" min="1" v-model.number="item.interval" @change="saveUserSettings" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500">
+                  <input type="number" min="1" v-model.number="item.interval" :disabled="!canEditSettings" @change="saveUserSettings" class="w-28 p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
                 </td>
                 <td class="py-2.5 px-3 text-right font-mono">
                   NT$ {{ (item.interval > 0 ? (item.cost / item.interval) : 0).toFixed(4) }}
@@ -388,37 +415,952 @@
           </table>
         </div>
       </main>
+
+      <!-- 頁籤三：最高權限帳號管理 -->
+      <main v-if="activeTab === 'admin' && isAdmin" class="space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-purple-200 space-y-4">
+          <div class="border-b pb-3 border-slate-100">
+            <h2 class="text-base font-bold text-purple-900 border-l-4 border-purple-600 pl-3">建立新帳號（管理者權限）</h2>
+            <p class="text-xs text-slate-500 mt-0.5">前台不開放自由註冊，僅限最高管理者在此協助開立新帳號並設定權限。</p>
+          </div>
+
+          <form @submit.prevent="createNewAccount" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">新帳號名稱</label>
+              <input type="text" v-model="createForm.username" required placeholder="至少 3 個字元" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">預設密碼</label>
+              <input type="password" v-model="createForm.password" required placeholder="至少 4 個字元" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">帳號權限</label>
+              <select v-model="createForm.role" class="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                <option value="user">一般使用者</option>
+                <option value="admin">最高管理者</option>
+              </select>
+            </div>
+            <div class="flex items-center pt-5">
+              <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="createForm.canEditSettings" :disabled="createForm.role === 'admin'" class="rounded border-slate-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50">
+                <span class="text-xs font-medium text-slate-700">開放修改參數權限</span>
+              </label>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition shadow-sm">
+                <i class="fa-solid fa-user-plus mr-1"></i>建立帳號
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3 border-slate-100">
+            <div>
+              <h2 class="text-base font-bold text-purple-900 border-l-4 border-purple-600 pl-3">最高權限 - 系統所有帳號管理</h2>
+              <p class="text-xs text-slate-500 mt-0.5">可在此直接勾選/取消一般使用者的「耗損參數修改權限」。</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5">
+                <span class="text-xs text-purple-700 font-medium">匯出月份：</span>
+                <input type="month" v-model="adminBatchMonth" class="bg-transparent text-xs font-bold text-purple-900 focus:outline-none">
+              </div>
+
+              <button @click="exportSelectedUsersExcel" :disabled="selectedUserHashes.length === 0" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-file-excel"></i>
+                匯出勾選帳號 Excel 月總表 ({{ selectedUserHashes.length }})
+              </button>
+
+              <button @click="loadAllAccounts" class="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition">
+                <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-purple-50 text-purple-900 border-y border-purple-100 font-semibold">
+                <tr>
+                  <th class="py-3 px-3 text-center w-10">
+                    <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" class="rounded border-slate-300 text-purple-600 focus:ring-purple-500">
+                  </th>
+                  <th class="py-3 px-3">使用者帳號</th>
+                  <th class="py-3 px-3">身份權限</th>
+                  <th class="py-3 px-3 text-center">開放參數修改</th>
+                  <th class="py-3 px-3 text-center">歷史報銷紀錄總筆數</th>
+                  <th class="py-3 px-3 text-center">查看資料</th>
+                  <th class="py-3 px-3 text-center">刪除帳號</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="user in allUsersList" :key="user.userHash" class="hover:bg-purple-50/30 transition">
+                  <td class="py-3 px-3 text-center">
+                    <input type="checkbox" :value="user.userHash" v-model="selectedUserHashes" class="rounded border-slate-300 text-purple-600 focus:ring-purple-500">
+                  </td>
+                  <td class="py-3 px-3 font-bold text-slate-800">
+                    <i class="fa-solid fa-user text-slate-400 mr-2"></i>{{ user.displayName }}
+                  </td>
+                  <td class="py-3 px-3">
+                    <span v-if="user.isAdmin" class="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 font-bold rounded">
+                      {{ user.displayName === 'viewlead' ? '預設管理者' : '管理者' }}
+                    </span>
+                    <span v-else class="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded">一般使用者</span>
+                  </td>
+                  <td class="py-3 px-3 text-center">
+                    <input 
+                      type="checkbox" 
+                      :checked="user.isAdmin || user.canEditSettings" 
+                      :disabled="user.isAdmin"
+                      @change="toggleUserSettingPermission(user, $event.target.checked)"
+                      class="rounded border-slate-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50 cursor-pointer">
+                  </td>
+                  <td class="py-3 px-3 text-center font-mono font-semibold">{{ user.recordCount }} 筆</td>
+                  <td class="py-3 px-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5">
+                      <button @click="viewUserDetail(user)" class="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium rounded-lg text-xs transition flex items-center gap-1" title="檢視差旅紀錄">
+                        <i class="fa-regular fa-eye"></i>檢視紀錄
+                      </button>
+                      <button @click="openUserSettingsModal(user)" class="px-2.5 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 font-medium rounded-lg text-xs transition flex items-center gap-1" title="唯讀檢視耗損與折舊參數">
+                        <i class="fa-solid fa-sliders"></i>檢視參數
+                      </button>
+                    </div>
+                  </td>
+                  <td class="py-3 px-3 text-center">
+                    <button 
+                      v-if="user.displayName !== 'viewlead' && (!user.isAdmin || currentUser === 'viewlead')" 
+                      @click="deleteUserAccount(user)" 
+                      class="px-3 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium rounded-lg text-xs transition">
+                      <i class="fa-solid fa-trash-can mr-1"></i>刪除帳號
+                    </button>
+                    <span v-else-if="user.displayName === 'viewlead'" class="text-xs text-slate-400 italic">系統預設管理者</span>
+                    <span v-else class="text-xs text-slate-400 italic">保留帳號</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div v-if="inspectTargetUser" class="bg-white p-6 rounded-2xl shadow-sm border border-purple-200 space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3 border-slate-100">
+            <div class="flex items-center gap-3">
+              <h3 class="text-sm font-bold text-purple-900 flex items-center gap-2">
+                <i class="fa-solid fa-folder-open text-purple-600"></i>
+                預覽帳號：<span class="text-blue-600 font-mono text-base">{{ inspectTargetUser }}</span> 的報銷紀錄
+              </h3>
+            </div>
+
+            <!-- 月份篩選與匯出 Excel -->
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5">
+                <span class="text-xs text-purple-700 font-medium">選擇月份：</span>
+                <input type="month" v-model="adminPreviewMonth" class="bg-transparent text-xs font-bold text-purple-900 focus:outline-none">
+              </div>
+
+              <button @click="exportTargetUserExcel" :disabled="filteredInspectRecords.length === 0" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-300 text-white font-semibold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-file-excel"></i>
+                匯出該帳號 Excel 月總表
+              </button>
+
+              <button @click="inspectTargetUser = null" class="text-xs text-slate-400 hover:text-slate-600 ml-2">
+                <i class="fa-solid fa-xmark mr-1"></i>關閉預覽
+              </button>
+            </div>
+          </div>
+
+          <!-- 【管理者檢視專用】機車油耗預設參數展示區 -->
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-gas-pump text-blue-600"></i> 機車油耗預設參數
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5">機車平均油耗預設</label>
+                <select :value="inspectUserFuelPreset" disabled class="w-full p-3 border border-slate-300 rounded-xl text-sm bg-slate-100 text-slate-500 cursor-not-allowed focus:outline-none">
+                  <option value="45">省油型 (45 km/L)</option>
+                  <option value="35">標準型 (35 km/L)</option>
+                  <option value="25">耗油型/重機 (25 km/L)</option>
+                  <option value="custom">自訂油耗數值</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5">每公升可行駛里程 (km/L)</label>
+                <div class="relative">
+                  <input type="number" :value="inspectUserFuelEfficiency" disabled class="w-full p-3 border border-slate-300 rounded-xl text-sm pr-14 bg-slate-100 text-slate-500 cursor-not-allowed focus:outline-none">
+                  <span class="absolute right-4 top-3.5 text-xs font-semibold text-slate-400">km/L</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-50 text-slate-600 border-y border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">日期</th>
+                  <th class="py-2.5 px-3">事由</th>
+                  <th class="py-2.5 px-3 text-right">里程(km)</th>
+                  <th class="py-2.5 px-3 text-right">折舊單價/km</th>
+                  <th class="py-2.5 px-3 text-right">油耗與折舊成本</th>
+                  <th class="py-2.5 px-3 text-right">停車費</th>
+                  <th class="py-2.5 px-3 text-right">給付金額</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-if="filteredInspectRecords.length === 0">
+                  <td colspan="7" class="py-6 text-center text-slate-400">該帳號於 {{ adminPreviewMonth }} 尚無紀錄</td>
+                </tr>
+                <tr v-for="(r, idx) in filteredInspectRecords" :key="idx" class="hover:bg-slate-50/80 transition">
+                  <td class="py-2 px-3 font-mono">{{ r.date }}</td>
+                  <td class="py-2 px-3">{{ r.purpose }}</td>
+                  <td class="py-2 px-3 text-right font-mono">{{ r.distance }}</td>
+                  <td class="py-2 px-3 text-right font-mono text-slate-500">NT$ {{ (r.lossPerKm || 0).toFixed(3) }}</td>
+                  <td class="py-2 px-3 text-right font-mono">NT$ {{ r.calcCost }}</td>
+                  <td class="py-2 px-3 text-right font-mono">NT$ {{ r.parkingFee }}</td>
+                  <td class="py-2 px-3 text-right font-mono font-bold text-blue-600">NT$ {{ r.finalPay }}</td>
+                </tr>
+              </tbody>
+              <tfoot v-if="filteredInspectRecords.length > 0" class="bg-purple-50/60 border-t-2 border-purple-200 font-bold text-slate-800">
+                <tr>
+                  <td class="py-2.5 px-3 font-mono text-slate-800">TOTAL {{ adminPreviewMonth }} 合計</td>
+                  <td class="py-2.5 px-3"></td>
+                  <td class="py-2.5 px-3 text-right font-mono text-purple-700">{{ inspectMonthTotals.km.toFixed(1) }}</td>
+                  <td class="py-2.5 px-3"></td>
+                  <td class="py-2.5 px-3 text-right font-mono">NT$ {{ inspectMonthTotals.calcCost.toFixed(1) }}</td>
+                  <td class="py-2.5 px-3 text-right font-mono">NT$ {{ inspectMonthTotals.parkingFee }}</td>
+                  <td class="py-2.5 px-3 text-right font-mono text-purple-700 text-base">NT$ {{ inspectMonthTotals.amount }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </main>
     </template>
+
+    <!-- 修改帳號與密碼彈窗 (Modal) -->
+    <div v-if="showAccountModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 border border-slate-100">
+        <div class="flex justify-between items-center border-b pb-3 border-slate-100">
+          <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-user-gear text-blue-600"></i>帳號與密碼設定
+          </h3>
+          <button @click="closeAccountModal" class="text-slate-400 hover:text-slate-600">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="handleUpdateAccount" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">帳號名稱</label>
+            <input type="text" v-model="accountForm.newUsername" required placeholder="請輸入新帳號名稱" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <span class="text-[10px] text-slate-400 mt-1 block">更改帳號名稱時，舊資料與報銷紀錄將同步搬移。</span>
+          </div>
+          <hr class="border-slate-100 my-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">舊密碼 (驗證權限)</label>
+            <input type="password" v-model="accountForm.oldPassword" required placeholder="請輸入當前舊密碼" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">新密碼 (若不修改請留空)</label>
+            <input type="password" v-model="accountForm.newPassword" placeholder="至少 4 個字元 (選填)" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">確認新密碼</label>
+            <input type="password" v-model="accountForm.confirmNewPassword" placeholder="再次輸入新密碼" class="w-full p-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" @click="closeAccountModal" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition">
+              取消
+            </button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition">
+              確認儲存
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 管理者唯讀檢視帳號耗損與油耗參數彈窗 (Modal) -->
+    <div v-if="showUserSettingsModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-2xl space-y-4 border border-slate-100 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b pb-3 border-slate-100 shrink-0">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-amber-600"></i>
+              檢視帳號預設參數：<span class="text-purple-700 font-mono">{{ inspectUserSettingsTargetUser }}</span>
+            </h3>
+            <span class="px-2 py-0.5 text-[11px] bg-amber-100 text-amber-800 font-bold rounded-md flex items-center gap-1">
+              <i class="fa-solid fa-lock"></i>唯讀模式
+            </span>
+          </div>
+          <button @click="showUserSettingsModal = false" class="text-slate-400 hover:text-slate-600">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <div class="overflow-y-auto flex-1 space-y-4">
+          <!-- 檢視彈窗內的機車油耗預設參數區塊 -->
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-gas-pump text-blue-600"></i> 機車油耗預設參數
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5">機車平均油耗預設</label>
+                <select :value="inspectUserSettingsFuelPreset" disabled class="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-slate-100 text-slate-500 cursor-not-allowed focus:outline-none">
+                  <option value="45">省油型 (45 km/L)</option>
+                  <option value="35">標準型 (35 km/L)</option>
+                  <option value="25">耗油型/重機 (25 km/L)</option>
+                  <option value="custom">自訂油耗數值</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5">每公升可行駛里程 (km/L)</label>
+                <div class="relative">
+                  <input type="number" :value="inspectUserSettingsFuelEfficiency" disabled class="w-full p-2.5 border border-slate-300 rounded-xl text-xs pr-14 bg-slate-100 text-slate-500 cursor-not-allowed focus:outline-none">
+                  <span class="absolute right-4 top-3 text-xs font-semibold text-slate-400">km/L</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 耗損與折舊參數表格 -->
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead class="bg-slate-50 text-slate-600 border-y border-slate-200 font-semibold sticky top-0">
+              <tr>
+                <th class="py-2.5 px-3">耗損 / 折舊項目</th>
+                <th class="py-2.5 px-3">單次費用 (NT$)</th>
+                <th class="py-2.5 px-3">壽命週期 (km)</th>
+                <th class="py-2.5 px-3 text-right">每公里分派成本</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="(item, index) in inspectUserSettingsList" :key="index">
+                <td class="py-2 px-3 font-medium text-slate-700">{{ item.name }}</td>
+                <td class="py-2 px-3">
+                  <input type="number" :value="item.cost" disabled class="w-24 p-1 border border-slate-200 rounded text-xs bg-slate-100 text-slate-500 cursor-not-allowed">
+                </td>
+                <td class="py-2 px-3">
+                  <input type="number" :value="item.interval" disabled class="w-24 p-1 border border-slate-200 rounded text-xs bg-slate-100 text-slate-500 cursor-not-allowed">
+                </td>
+                <td class="py-2 px-3 text-right font-mono text-slate-700">
+                  NT$ {{ (item.interval > 0 ? (item.cost / item.interval) : 0).toFixed(4) }}
+                </td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-amber-50/60 border-t-2 border-amber-200 font-bold text-slate-800">
+              <tr>
+                <td class="py-2.5 px-3" colspan="3">固定折舊單價總計 (每公里成本)</td>
+                <td class="py-2.5 px-3 text-right font-mono text-amber-800 text-sm">
+                  NT$ {{ inspectUserSettingsTotalLoss.toFixed(4) }} / km
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="flex justify-end pt-2 border-t border-slate-100 shrink-0">
+          <button @click="showUserSettingsModal = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-    // 已替換為您的專屬 Firebase 金鑰配置
-    const firebaseConfig = {
-      apiKey: "AIzaSyDIC-j_HHmCey4RbmM4sckK5u4v0OP9Yks",
-      authDomain: "travel-expense-calculato-b4125.firebaseapp.com",
-      projectId: "travel-expense-calculato-b4125",
-      storageBucket: "travel-expense-calculato-b4125.firebasestorage.app",
-      messagingSenderId: "546762800669",
-      appId: "1:546762800669:web:59d1bb9c3a9b763c58d0f4"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
+  <script>
     const { createApp, ref, computed, watch, onMounted } = Vue;
 
     createApp({
       setup() {
         const activeTab = ref('calculator');
-        const currentUser = ref(null);
+
+        // --- 相容性修正：SHA-256 雜湊計算輔助函式 (含安全降級機制) ---
+        const hashString = async (str) => {
+          if (window.crypto && window.crypto.subtle) {
+            try {
+              const buffer = new TextEncoder().encode(str);
+              const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+              return Array.from(new Uint8Array(hashBuffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+            } catch (e) {
+              console.warn("crypto.subtle 存取失敗，使用降級雜湊", e);
+            }
+          }
+          // 降級備用算法 (當環境阻擋 Web Crypto API 時使用)
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash |= 0;
+          }
+          return 'fb_' + Math.abs(hash).toString(16);
+        };
+
+        // 初始化預設帳號（若本地完全無使用者資料時）
+        const initDefaultUsers = async () => {
+          const users = getUsersFromStorage();
+          if (Object.keys(users).length === 0) {
+            const adminUserHash = await hashString('viewlead');
+            const adminPwdHash = await hashString('admin1234');
+            users[adminUserHash] = {
+              passwordHash: adminPwdHash,
+              isAdmin: true,
+              canEditSettings: false, // 預設唯讀
+              originalName: 'viewlead'
+            };
+            localStorage.setItem('myApp_users', JSON.stringify(users));
+          }
+        };
+
+        // --- 登入與驗證邏輯 ---
+        const currentUser = ref(''); 
+        const currentUserHash = ref('');
         const authError = ref('');
-        const authForm = ref({ email: '', password: '' });
+        const authForm = ref({ username: '', password: '' });
+
         const isAdmin = ref(false);
+        const userCanEditSettings = ref(false);
+
+        // 當前使用者是否具備修改耗損參數權限
+        const canEditSettings = computed(() => isAdmin.value || userCanEditSettings.value);
+
+        const getUsersFromStorage = () => {
+          return JSON.parse(localStorage.getItem('myApp_users') || '{}');
+        };
+
+        const handleLogin = async () => {
+          authError.value = '';
+          const { username, password } = authForm.value;
+          const cleanUser = username ? username.trim() : '';
+
+          if (!cleanUser || !password) {
+            authError.value = '請輸入帳號與密碼！';
+            return;
+          }
+
+          const uHash = await hashString(cleanUser);
+          const pHash = await hashString(password);
+
+          const users = getUsersFromStorage();
+          const userObj = users[uHash];
+
+          if (!userObj || userObj.passwordHash !== pHash) {
+            authError.value = '帳號或密碼錯誤！';
+            return;
+          }
+
+          currentUser.value = cleanUser;
+          currentUserHash.value = uHash;
+          isAdmin.value = !!userObj.isAdmin;
+          userCanEditSettings.value = !!userObj.canEditSettings;
+
+          localStorage.setItem('myApp_currentUser', cleanUser);
+          localStorage.setItem('myApp_currentUserHash', uHash);
+          loadUserData();
+          authForm.value = { username: '', password: '' };
+        };
+
+        const handleLogout = () => {
+          currentUser.value = '';
+          currentUserHash.value = '';
+          isAdmin.value = false;
+          userCanEditSettings.value = false;
+          localStorage.removeItem('myApp_currentUser');
+          localStorage.removeItem('myApp_currentUserHash');
+          records.value = [];
+        };
+
+        // --- 修改帳號與密碼功能 ---
+        const showAccountModal = ref(false);
+        const accountForm = ref({ newUsername: '', oldPassword: '', newPassword: '', confirmNewPassword: '' });
+
+        const openAccountModal = () => {
+          accountForm.value = {
+            newUsername: currentUser.value,
+            oldPassword: '',
+            newPassword: '',
+            confirmNewPassword: ''
+          };
+          showAccountModal.value = true;
+        };
+
+        const closeAccountModal = () => {
+          showAccountModal.value = false;
+          accountForm.value = { newUsername: '', oldPassword: '', newPassword: '', confirmNewPassword: '' };
+        };
+
+        const handleUpdateAccount = async () => {
+          const { newUsername, oldPassword, newPassword, confirmNewPassword } = accountForm.value;
+          const cleanNewUsername = newUsername ? newUsername.trim() : '';
+
+          if (!cleanNewUsername || cleanNewUsername.length < 3) {
+            alert('帳號名稱至少需要 3 個字元！');
+            return;
+          }
+
+          const oldHash = await hashString(oldPassword);
+          const users = getUsersFromStorage();
+          const currentObj = users[currentUserHash.value];
+
+          if (!currentObj || currentObj.passwordHash !== oldHash) {
+            alert('舊密碼輸入錯誤，無法進行修更！');
+            return;
+          }
+
+          if (newPassword) {
+            if (newPassword.length < 4) {
+              alert('新密碼長度至少需 4 個字元！');
+              return;
+            }
+            if (newPassword !== confirmNewPassword) {
+              alert('兩次輸入的新密碼不一致！');
+              return;
+            }
+          }
+
+          const targetPasswordHash = newPassword ? await hashString(newPassword) : oldHash;
+          const newHash = await hashString(cleanNewUsername);
+
+          if (cleanNewUsername !== currentUser.value) {
+            if (users[newHash]) {
+              alert('該新帳號名稱已被使用，請更換其他名稱！');
+              return;
+            }
+
+            users[newHash] = {
+              passwordHash: targetPasswordHash,
+              isAdmin: currentObj.isAdmin,
+              canEditSettings: currentObj.canEditSettings,
+              originalName: cleanNewUsername
+            };
+            delete users[currentUserHash.value];
+
+            const oldRecords = localStorage.getItem(`myApp_records_${currentUserHash.value}`);
+            if (oldRecords) {
+              localStorage.setItem(`myApp_records_${newHash}`, oldRecords);
+              localStorage.removeItem(`myApp_records_${currentUserHash.value}`);
+            }
+
+            const oldSettings = localStorage.getItem(`myApp_settings_${currentUserHash.value}`);
+            if (oldSettings) {
+              localStorage.setItem(`myApp_settings_${newHash}`, oldSettings);
+              localStorage.removeItem(`myApp_settings_${currentUserHash.value}`);
+            }
+
+            currentUser.value = cleanNewUsername;
+            currentUserHash.value = newHash;
+            localStorage.setItem('myApp_currentUser', cleanNewUsername);
+            localStorage.setItem('myApp_currentUserHash', newHash);
+          } else {
+            users[currentUserHash.value].passwordHash = targetPasswordHash;
+          }
+
+          localStorage.setItem('myApp_users', JSON.stringify(users));
+          alert('帳號與密碼設定已成功更新！');
+          closeAccountModal();
+        };
+
+        // --- 管理者建立新帳號（預設唯讀 canEditSettings: false） ---
+        const createForm = ref({ username: '', password: '', role: 'user', canEditSettings: false });
+
+        const createNewAccount = async () => {
+          const { username, password, role, canEditSettings: formCanEdit } = createForm.value;
+          if (!username || username.trim().length < 3) {
+            alert('帳號名稱至少需 3 個字元！');
+            return;
+          }
+          if (!password || password.length < 4) {
+            alert('預設密碼至少需 4 個字元！');
+            return;
+          }
+
+          const cleanUser = username.trim();
+          const uHash = await hashString(cleanUser);
+          const pHash = await hashString(password);
+
+          const users = getUsersFromStorage();
+
+          if (users[uHash]) {
+            alert('該帳號已經存在！');
+            return;
+          }
+
+          const isNewAdmin = role === 'admin';
+          users[uHash] = { 
+            passwordHash: pHash, 
+            isAdmin: isNewAdmin, 
+            canEditSettings: formCanEdit,
+            originalName: cleanUser 
+          };
+          localStorage.setItem('myApp_users', JSON.stringify(users));
+
+          alert(`成功建立帳號 [${cleanUser}]（權限：${isNewAdmin ? '最高管理者' : '一般使用者'}）！`);
+          createForm.value = { username: '', password: '', role: 'user', canEditSettings: false };
+          loadAllAccounts();
+        };
+
+        // --- 監聽 activeTab 切換：離開耗損參數頁面時自動恢復為唯讀 ---
+        watch(activeTab, (newTab) => {
+          if (newTab !== 'settings') {
+            userCanEditSettings.value = false;
+            if (currentUserHash.value) {
+              const users = getUsersFromStorage();
+              if (users[currentUserHash.value]) {
+                users[currentUserHash.value].canEditSettings = false;
+                localStorage.setItem('myApp_users', JSON.stringify(users));
+              }
+            }
+          }
+        });
+
+        // --- 管理者管理功能與月分篩選匯出 ---
+        const getCurrentMonthStr = () => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const allUsersList = ref([]);
+        const selectedUserHashes = ref([]);
+        const inspectTargetUser = ref(null);
+        const inspectUserRecords = ref([]);
+        const adminPreviewMonth = ref(getCurrentMonthStr());
+        const adminBatchMonth = ref(getCurrentMonthStr());
+
+        // 管理者檢視帳號油耗參數狀態
+        const inspectUserFuelEfficiency = computed(() => {
+          if (!inspectUserRecords.value || inspectUserRecords.value.length === 0) return 35.0;
+          return inspectUserRecords.value[inspectUserRecords.value.length - 1].efficiency || 35.0;
+        });
+
+        const inspectUserFuelPreset = computed(() => {
+          const effStr = String(inspectUserFuelEfficiency.value);
+          return ['45', '35', '25'].includes(effStr) ? effStr : 'custom';
+        });
+
+        // 管理者唯讀檢視帳號耗損與油耗參數狀態
+        const showUserSettingsModal = ref(false);
+        const inspectUserSettingsTargetUser = ref('');
+        const inspectUserSettingsList = ref([]);
+        const inspectUserSettingsFuelEfficiency = ref(35.0);
+
+        const inspectUserSettingsFuelPreset = computed(() => {
+          const effStr = String(inspectUserSettingsFuelEfficiency.value);
+          return ['45', '35', '25'].includes(effStr) ? effStr : 'custom';
+        });
+
+        const openUserSettingsModal = (user) => {
+          inspectUserSettingsTargetUser.value = user.displayName;
+          const savedSettings = localStorage.getItem(`myApp_settings_${user.userHash}`);
+          inspectUserSettingsList.value = savedSettings ? JSON.parse(savedSettings) : JSON.parse(JSON.stringify(initialItems));
+
+          // 讀取該使用者最新筆紀錄的油耗數值
+          const userRecs = JSON.parse(localStorage.getItem(`myApp_records_${user.userHash}`) || '[]');
+          if (userRecs.length > 0) {
+            inspectUserSettingsFuelEfficiency.value = userRecs[userRecs.length - 1].efficiency || 35.0;
+          } else {
+            inspectUserSettingsFuelEfficiency.value = 35.0;
+          }
+
+          showUserSettingsModal.value = true;
+        };
+
+        const inspectUserSettingsTotalLoss = computed(() => {
+          return inspectUserSettingsList.value.reduce((sum, item) => sum + (item.interval > 0 ? (item.cost / item.interval) : 0), 0);
+        });
+
+        const loadAllAccounts = () => {
+          const users = getUsersFromStorage();
+          const userKeys = Object.keys(users);
+
+          allUsersList.value = userKeys.map(uHash => {
+            const userObj = users[uHash];
+            const userRecs = JSON.parse(localStorage.getItem(`myApp_records_${uHash}`) || '[]');
+            return {
+              userHash: uHash,
+              displayName: userObj.originalName || 'User',
+              isAdmin: !!userObj.isAdmin,
+              canEditSettings: !!userObj.canEditSettings,
+              recordCount: userRecs.length
+            };
+          });
+        };
+
+        // 管理者切換使用者參數權限
+        const toggleUserSettingPermission = (user, checked) => {
+          const users = getUsersFromStorage();
+          if (users[user.userHash]) {
+            users[user.userHash].canEditSettings = checked;
+            localStorage.setItem('myApp_users', JSON.stringify(users));
+            user.canEditSettings = checked;
+            
+            if (user.userHash === currentUserHash.value) {
+              userCanEditSettings.value = checked;
+            }
+          }
+        };
+
+        // 全選 / 反選勾選方塊
+        const isAllSelected = computed(() => {
+          return allUsersList.value.length > 0 && selectedUserHashes.value.length === allUsersList.value.length;
+        });
+
+        const toggleSelectAll = (e) => {
+          if (e.target.checked) {
+            selectedUserHashes.value = allUsersList.value.map(u => u.userHash);
+          } else {
+            selectedUserHashes.value = [];
+          }
+        };
+
+        const viewUserDetail = (user) => {
+          inspectTargetUser.value = user.displayName;
+          inspectUserRecords.value = JSON.parse(localStorage.getItem(`myApp_records_${user.userHash}`) || '[]');
+        };
+
+        // 計算管理者預覽帳號的月分篩選清單
+        const filteredInspectRecords = computed(() => {
+          if (!inspectUserRecords.value) return [];
+          return inspectUserRecords.value.filter(r => r.date && r.date.startsWith(adminPreviewMonth.value));
+        });
+
+        // 管理者預覽月份合計資料
+        const inspectMonthTotals = computed(() => {
+          const recs = filteredInspectRecords.value;
+          return {
+            km: recs.reduce((sum, item) => sum + (Number(item.distance) || 0), 0),
+            calcCost: recs.reduce((sum, item) => sum + (Number(item.calcCost) || 0), 0),
+            parkingFee: recs.reduce((sum, item) => sum + (Number(item.parkingFee) || 0), 0),
+            amount: recs.reduce((sum, item) => sum + (Number(item.finalPay) || 0), 0)
+          };
+        });
+
+        // 管理者導出選定單一帳號的報銷紀錄 Excel
+        const exportTargetUserExcel = () => {
+          const targetRecs = filteredInspectRecords.value;
+          if (targetRecs.length === 0) {
+            alert('目前選擇的月份無任何紀錄可供匯出！');
+            return;
+          }
+
+          const workbook = XLSX.utils.book_new();
+
+          const detailData = targetRecs.map(item => ({
+            "出差日期": item.date,
+            "出差事由": item.purpose,
+            "里程(km)": item.distance,
+            "汽油種類": item.fuelType,
+            "當週油價": item.fuelPrice,
+            "油耗(km/L)": item.efficiency,
+            "折舊單價(元/km)": Number((item.lossPerKm || 0).toFixed(4)),
+            "油耗與折舊成本": Number(item.calcCost),
+            "停車費": Number(item.parkingFee),
+            "給付金額": Number(item.finalPay)
+          }));
+
+          const totals = inspectMonthTotals.value;
+          detailData.push({
+            "出差日期": "TOTAL 當月合計",
+            "出差事由": "",
+            "里程(km)": Number(totals.km.toFixed(1)),
+            "汽油種類": "",
+            "當週油價": "",
+            "油耗(km/L)": "",
+            "折舊單價(元/km)": "",
+            "油耗與折舊成本": Number(totals.calcCost.toFixed(1)),
+            "停車費": totals.parkingFee,
+            "給付金額": totals.amount
+          });
+
+          const ws1 = XLSX.utils.json_to_sheet(detailData);
+          ws1['!cols'] = [
+            { wch: 18 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+            { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 14 }
+          ];
+          XLSX.utils.book_append_sheet(workbook, ws1, "差旅報銷明細");
+
+          const paramSheetData = [];
+          targetRecs.forEach((rec, recIdx) => {
+            paramSheetData.push({ "A": `【出差日期：${rec.date}】`, "B": `事由：${rec.purpose}`, "C": "", "D": "" });
+            paramSheetData.push({ "A": "耗損 / 折舊項目", "B": "單次費用 (NT$)", "C": "壽命週期 (km)", "D": "每公里分派成本 (元/km)" });
+
+            let currentTotalLoss = 0;
+            const snapshot = rec.snapshotItems || initialItems;
+            snapshot.forEach(p => {
+              const unitCost = p.interval > 0 ? (p.cost / p.interval) : 0;
+              currentTotalLoss += unitCost;
+              paramSheetData.push({ "A": p.name, "B": p.cost, "C": p.interval, "D": Number(unitCost.toFixed(4)) });
+            });
+
+            paramSheetData.push({ "A": "【小計：固定折舊單價】", "B": "", "C": "", "D": Number(currentTotalLoss.toFixed(4)) });
+            if (recIdx < targetRecs.length - 1) paramSheetData.push({ "A": "", "B": "", "C": "", "D": "" });
+          });
+
+          const ws2 = XLSX.utils.json_to_sheet(paramSheetData, { skipHeader: true });
+          ws2['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 28 }];
+          XLSX.utils.book_append_sheet(workbook, ws2, "耗損與折舊參數明細");
+
+          XLSX.writeFile(workbook, `機車差旅費用月總表_${inspectTargetUser.value}_${adminPreviewMonth.value}.xlsx`);
+        };
+
+        // 管理者批量導出多個選定帳號的 Excel
+        const exportSelectedUsersExcel = () => {
+          if (selectedUserHashes.value.length === 0) {
+            alert('請至少勾選一個帳號！');
+            return;
+          }
+
+          const workbook = XLSX.utils.book_new();
+          let exportedCount = 0;
+
+          selectedUserHashes.value.forEach(uHash => {
+            const userObj = allUsersList.value.find(u => u.userHash === uHash);
+            if (!userObj) return;
+
+            const rawRecs = JSON.parse(localStorage.getItem(`myApp_records_${uHash}`) || '[]');
+            const monthRecs = rawRecs.filter(r => r.date && r.date.startsWith(adminBatchMonth.value));
+
+            if (monthRecs.length > 0) {
+              exportedCount++;
+              
+              const detailData = monthRecs.map(item => ({
+                "出差日期": item.date,
+                "出差事由": item.purpose,
+                "里程(km)": item.distance,
+                "汽油種類": item.fuelType,
+                "當週油價": item.fuelPrice,
+                "油耗(km/L)": item.efficiency,
+                "折舊單價(元/km)": Number((item.lossPerKm || 0).toFixed(4)),
+                "油耗與折舊成本": Number(item.calcCost),
+                "停車費": Number(item.parkingFee),
+                "給付金額": Number(item.finalPay)
+              }));
+
+              const totalKm = monthRecs.reduce((sum, i) => sum + (Number(i.distance) || 0), 0);
+              const totalCalcCost = monthRecs.reduce((sum, i) => sum + (Number(i.calcCost) || 0), 0);
+              const totalParking = monthRecs.reduce((sum, i) => sum + (Number(i.parkingFee) || 0), 0);
+              const totalAmount = monthRecs.reduce((sum, i) => sum + (Number(i.finalPay) || 0), 0);
+
+              detailData.push({
+                "出差日期": "TOTAL 當月合計",
+                "出差事由": "",
+                "里程(km)": Number(totalKm.toFixed(1)),
+                "汽油種類": "",
+                "當週油價": "",
+                "油耗(km/L)": "",
+                "折舊單價(元/km)": "",
+                "油耗與折舊成本": Number(totalCalcCost.toFixed(1)),
+                "停車費": totalParking,
+                "給付金額": totalAmount
+              });
+
+              const wsDetail = XLSX.utils.json_to_sheet(detailData);
+              wsDetail['!cols'] = [
+                { wch: 18 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+                { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 14 }
+              ];
+              const detailSheetName = userObj.displayName.substring(0, 31);
+              XLSX.utils.book_append_sheet(workbook, wsDetail, detailSheetName);
+
+              const paramSheetData = [];
+              monthRecs.forEach((rec, recIdx) => {
+                paramSheetData.push({ "A": `【出差日期：${rec.date}】`, "B": `事由：${rec.purpose}`, "C": "", "D": "" });
+                paramSheetData.push({ "A": "耗損 / 折舊項目", "B": "單次費用 (NT$)", "C": "壽命週期 (km)", "D": "每公里分派成本 (元/km)" });
+
+                let currentTotalLoss = 0;
+                const snapshot = rec.snapshotItems || initialItems;
+                snapshot.forEach(p => {
+                  const unitCost = p.interval > 0 ? (p.cost / p.interval) : 0;
+                  currentTotalLoss += unitCost;
+                  paramSheetData.push({ "A": p.name, "B": p.cost, "C": p.interval, "D": Number(unitCost.toFixed(4)) });
+                });
+
+                paramSheetData.push({ "A": "【小計：固定折舊單價】", "B": "", "C": "", "D": Number(currentTotalLoss.toFixed(4)) });
+                if (recIdx < monthRecs.length - 1) paramSheetData.push({ "A": "", "B": "", "C": "", "D": "" });
+              });
+
+              const wsParam = XLSX.utils.json_to_sheet(paramSheetData, { skipHeader: true });
+              wsParam['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 28 }];
+              
+              const paramSheetName = (userObj.displayName.substring(0, 24) + "_耗損明細").substring(0, 31);
+              XLSX.utils.book_append_sheet(workbook, wsParam, paramSheetName);
+            }
+          });
+
+          if (exportedCount === 0) {
+            alert(`勾選的帳號在 ${adminBatchMonth.value} 月份皆無任何紀錄可供匯出！`);
+            return;
+          }
+
+          XLSX.writeFile(workbook, `多帳號差旅費用月總表_${adminBatchMonth.value}.xlsx`);
+        };
+
+        const deleteUserAccount = (user) => {
+          if (user.displayName === 'viewlead') {
+            alert('系統預設管理者帳號無法被刪除！');
+            return;
+          }
+
+          if (user.isAdmin && currentUser.value !== 'viewlead') {
+            alert('只有系統預設管理者（viewlead）具備權限刪除其他管理者帳號！');
+            return;
+          }
+
+          if (confirm(`確定要刪除帳號 [${user.displayName}] 嗎？此操作將同時清空該帳號的所有資料。`)) {
+            const users = getUsersFromStorage();
+            delete users[user.userHash];
+            localStorage.setItem('myApp_users', JSON.stringify(users));
+
+            localStorage.removeItem(`myApp_records_${user.userHash}`);
+            localStorage.removeItem(`myApp_settings_${user.userHash}`);
+
+            if (inspectTargetUser.value === user.displayName) {
+              inspectTargetUser.value = null;
+              inspectUserRecords.value = [];
+            }
+
+            loadAllAccounts();
+            alert(`已成功刪除帳號 [${user.displayName}]！`);
+          }
+        };
+
+        // --- 主系統業務邏輯 ---
+        const getTodayStr = () => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        };
+
+        const targetMonth = ref(getCurrentMonthStr());
+        const purpose = ref('');
+        const inputDate = ref(getTodayStr());
+        const selectedFuelType = ref('95');
+        const fuelPrice = ref(31.0);
+        const distance = ref(0);
+        const parkingFee = ref(0);
+        const fuelPreset = ref('35');
+        const fuelEfficiency = ref(35.0);
+        const editingIndex = ref(null);
+        const editingSnapshotItems = ref(null);
+
+        const records = ref([]);
+
+        const googleSearchUrl = computed(() => {
+          const query = `中油 ${inputDate.value} 當週 ${selectedFuelType.value}無鉛汽油 歷史油價`;
+          return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        });
+
+        const onPresetChange = () => {
+          if (fuelPreset.value !== 'custom') {
+            fuelEfficiency.value = parseFloat(fuelPreset.value);
+          }
+        };
 
         const initialItems = [
           { name: "機油", cost: 400, interval: 1000 },
@@ -435,106 +1377,47 @@
         ];
 
         const defaultMaintenanceItems = ref(JSON.parse(JSON.stringify(initialItems)));
-        const records = ref([]);
 
-        let unsubscribeRecords = null;
+        const loadUserData = () => {
+          if (!currentUserHash.value) return;
 
-        // 監聽 Firebase 驗證狀態變更
-        onAuthStateChanged(auth, async (user) => {
-          currentUser.value = user;
-          if (user) {
-            fetchUserSettings(user.uid);
-            subscribeRecords(user.uid);
-          } else {
-            records.value = [];
-            if (unsubscribeRecords) unsubscribeRecords();
+          const users = getUsersFromStorage();
+          const uObj = users[currentUserHash.value];
+          if (uObj) {
+            userCanEditSettings.value = !!uObj.canEditSettings;
           }
-        });
 
-        const handleLogin = async () => {
-          authError.value = '';
-          try {
-            // 如果輸入純帳號名稱且未含 @，補上預設網域以滿足 Firebase Auth 的 Email 格式驗證
-            let loginEmail = authForm.value.email.trim();
-            if (!loginEmail.includes('@')) {
-              loginEmail = `${loginEmail}@yourdomain.com`;
-            }
+          const savedRecords = localStorage.getItem(`myApp_records_${currentUserHash.value}`);
+          records.value = savedRecords ? JSON.parse(savedRecords) : [];
 
-            await signInWithEmailAndPassword(auth, loginEmail, authForm.value.password);
-            authForm.value = { email: '', password: '' };
-          } catch (err) {
-            authError.value = '登入失敗：' + err.message;
+          const savedSettings = localStorage.getItem(`myApp_settings_${currentUserHash.value}`);
+          defaultMaintenanceItems.value = savedSettings ? JSON.parse(savedSettings) : JSON.parse(JSON.stringify(initialItems));
+        };
+
+        const saveUserRecords = () => {
+          if (currentUserHash.value) {
+            localStorage.setItem(`myApp_records_${currentUserHash.value}`, JSON.stringify(records.value));
           }
         };
 
-        const handleLogout = async () => {
-          await signOut(auth);
-        };
-
-        // 即時監聽 Firestore 中的差旅紀錄
-        const subscribeRecords = (uid) => {
-          if (unsubscribeRecords) unsubscribeRecords();
-          const q = query(collection(db, "travel_records"), where("uid", "==", uid));
-          unsubscribeRecords = onSnapshot(q, (snapshot) => {
-            records.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          });
-        };
-
-        // 讀取設定檔
-        const fetchUserSettings = async (uid) => {
-          const docRef = doc(db, "user_settings", uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists() && docSnap.data().items) {
-            defaultMaintenanceItems.value = docSnap.data().items;
+        const saveUserSettings = () => {
+          if (!canEditSettings.value) return;
+          if (currentUserHash.value) {
+            localStorage.setItem(`myApp_settings_${currentUserHash.value}`, JSON.stringify(defaultMaintenanceItems.value));
           }
         };
 
-        // 儲存設定檔至 Firestore
-        const saveUserSettings = async () => {
-          if (!currentUser.value) return;
-          const docRef = doc(db, "user_settings", currentUser.value.uid);
-          await setDoc(docRef, { items: defaultMaintenanceItems.value }, { merge: true });
-        };
+        watch(records, () => {
+          saveUserRecords();
+        }, { deep: true });
 
-        const resetDefaults = async () => {
-          defaultMaintenanceItems.value = JSON.parse(JSON.stringify(initialItems));
-          await saveUserSettings();
-        };
-
-        // 表單與計算邏輯
-        const getCurrentMonthStr = () => {
-          const now = new Date();
-          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        };
-        const getTodayStr = () => {
-          const now = new Date();
-          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        };
-
-        const targetMonth = ref(getCurrentMonthStr());
-        const purpose = ref('');
-        const inputDate = ref(getTodayStr());
-        const selectedFuelType = ref('95');
-        const fuelPrice = ref(31.0);
-        const distance = ref(0);
-        const parkingFee = ref(0);
-        const fuelPreset = ref('35');
-        const fuelEfficiency = ref(35.0);
-        const editingId = ref(null);
-
-        const onPresetChange = () => {
-          if (fuelPreset.value !== 'custom') {
-            fuelEfficiency.value = parseFloat(fuelPreset.value);
-          }
-        };
-
-        const googleSearchUrl = computed(() => {
-          const query = `中油 ${inputDate.value} 當週 ${selectedFuelType.value}無鉛汽油 歷史油價`;
-          return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+        onMounted(async () => {
+          await initDefaultUsers();
         });
 
         const totalLossPerKm = computed(() => {
-          return defaultMaintenanceItems.value.reduce((sum, item) => sum + (item.interval > 0 ? (item.cost / item.interval) : 0), 0);
+          const currentItems = (editingIndex.value !== null && editingSnapshotItems.value) ? editingSnapshotItems.value : defaultMaintenanceItems.value;
+          return currentItems.reduce((sum, item) => sum + (item.interval > 0 ? (item.cost / item.interval) : 0), 0);
         });
 
         const estimatedLiters = computed(() => (distance.value && fuelEfficiency.value) ? distance.value / fuelEfficiency.value : 0);
@@ -542,25 +1425,18 @@
         const lossSubTotal = computed(() => (distance.value || 0) * totalLossPerKm.value);
         const totalCost = computed(() => fuelSubTotal.value + lossSubTotal.value + (parkingFee.value || 0));
 
-        const filteredRecords = computed(() => {
-          return records.value
-            .filter(r => r.date && r.date.startsWith(targetMonth.value))
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
-        });
+        const monthTotalKm = computed(() => records.value.reduce((sum, item) => sum + (Number(item.distance) || 0), 0));
+        const monthTotalCalcCost = computed(() => records.value.reduce((sum, item) => sum + (Number(item.calcCost) || 0), 0));
+        const monthTotalParkingFee = computed(() => records.value.reduce((sum, item) => sum + (Number(item.parkingFee) || 0), 0));
+        const monthTotalAmount = computed(() => records.value.reduce((sum, item) => sum + (Number(item.finalPay) || 0), 0));
 
-        const monthTotalKm = computed(() => filteredRecords.value.reduce((sum, item) => sum + (Number(item.distance) || 0), 0));
-        const monthTotalCalcCost = computed(() => filteredRecords.value.reduce((sum, item) => sum + (Number(item.calcCost) || 0), 0));
-        const monthTotalParkingFee = computed(() => filteredRecords.value.reduce((sum, item) => sum + (Number(item.parkingFee) || 0), 0));
-        const monthTotalAmount = computed(() => filteredRecords.value.reduce((sum, item) => sum + (Number(item.finalPay) || 0), 0));
-
-        const saveRecord = async () => {
+        const addRecord = () => {
           if (!distance.value || distance.value <= 0) {
             alert('請輸入有效的出差往返總里程！');
             return;
           }
 
-          const recordData = {
-            uid: currentUser.value.uid,
+          records.value.push({
             date: inputDate.value,
             purpose: purpose.value || '未填寫',
             distance: distance.value,
@@ -572,56 +1448,85 @@
             calcCost: (fuelSubTotal.value + lossSubTotal.value).toFixed(1),
             parkingFee: parkingFee.value || 0,
             finalPay: Math.ceil(totalCost.value)
-          };
+          });
 
-          if (editingId.value) {
-            await updateDoc(doc(db, "travel_records", editingId.value), recordData);
-          } else {
-            await addDoc(collection(db, "travel_records"), recordData);
-          }
-
-          cancelEdit();
-        };
-
-        const editRecord = (item) => {
-          editingId.value = item.id;
-          inputDate.value = item.date;
-          purpose.value = item.purpose === '未填寫' ? '' : item.purpose;
-          distance.value = item.distance;
-          
-          const rawFuelType = item.fuelType ? item.fuelType.replace('無鉛', '') : '95';
-          selectedFuelType.value = ['92', '95', '98'].includes(rawFuelType) ? rawFuelType : '95';
-          
-          fuelPrice.value = item.fuelPrice;
-          fuelEfficiency.value = item.efficiency;
-          parkingFee.value = item.parkingFee;
-        };
-
-        const cancelEdit = () => {
-          editingId.value = null;
+          records.value.sort((a, b) => new Date(a.date) - new Date(b.date));
           resetInputs();
         };
 
-        const deleteRecord = async (id) => {
-          if (confirm('確定要刪除此筆紀錄嗎？')) {
-            await deleteDoc(doc(db, "travel_records", id));
-            if (editingId.value === id) cancelEdit();
+        const editRecord = (index) => {
+          const rec = records.value[index];
+          editingIndex.value = index;
+          editingSnapshotItems.value = rec.snapshotItems ? JSON.parse(JSON.stringify(rec.snapshotItems)) : JSON.parse(JSON.stringify(defaultMaintenanceItems.value));
+
+          inputDate.value = rec.date;
+          purpose.value = rec.purpose === '未填寫' ? '' : rec.purpose;
+          distance.value = rec.distance;
+          
+          const rawFuelType = rec.fuelType ? rec.fuelType.replace('無鉛', '') : '95';
+          selectedFuelType.value = ['92', '95', '98'].includes(rawFuelType) ? rawFuelType : '95';
+          
+          fuelPrice.value = rec.fuelPrice;
+          
+          const effStr = String(rec.efficiency);
+          if (['45', '35', '25'].includes(effStr)) {
+            fuelPreset.value = effStr;
+          } else {
+            fuelPreset.value = 'custom';
           }
+          fuelEfficiency.value = rec.efficiency;
+          parkingFee.value = rec.parkingFee;
         };
 
-        const resetInputs = () => {
-          purpose.value = '';
-          inputDate.value = getTodayStr();
-          distance.value = 0;
-          parkingFee.value = 0;
-          fuelPreset.value = '35';
-          fuelEfficiency.value = 35.0;
+        const saveEditRecord = () => {
+          if (editingIndex.value === null) return;
+          if (!distance.value || distance.value <= 0) {
+            alert('請輸入有效的出差往返總里程！');
+            return;
+          }
+
+          records.value[editingIndex.value] = {
+            date: inputDate.value,
+            purpose: purpose.value || '未填寫',
+            distance: distance.value,
+            fuelType: `${selectedFuelType.value}無鉛`,
+            fuelPrice: fuelPrice.value,
+            efficiency: fuelEfficiency.value,
+            lossPerKm: totalLossPerKm.value,
+            snapshotItems: editingSnapshotItems.value || JSON.parse(JSON.stringify(defaultMaintenanceItems.value)),
+            calcCost: (fuelSubTotal.value + lossSubTotal.value).toFixed(1),
+            parkingFee: parkingFee.value || 0,
+            finalPay: Math.ceil(totalCost.value)
+          };
+
+          records.value.sort((a, b) => new Date(a.date) - new Date(b.date));
+          cancelEdit();
+        };
+
+        const cancelEdit = () => {
+          editingIndex.value = null;
+          editingSnapshotItems.value = null;
+          resetInputs();
+        };
+
+        const deleteRecord = (index) => {
+          if (editingIndex.value === index) {
+            cancelEdit();
+          }
+          records.value.splice(index, 1);
+        };
+
+        const clearMonthRecords = () => { 
+          if (confirm('確定清空？')) {
+            cancelEdit();
+            records.value = []; 
+          }
         };
 
         const exportToExcel = () => {
           const workbook = XLSX.utils.book_new();
 
-          const detailData = filteredRecords.value.map(item => ({
+          const detailData = records.value.map(item => ({
             "出差日期": item.date,
             "出差事由": item.purpose,
             "里程(km)": item.distance,
@@ -654,16 +1559,118 @@
           ];
           XLSX.utils.book_append_sheet(workbook, ws1, "差旅報銷明細");
 
-          XLSX.writeFile(workbook, `機車差旅費用月總表_${targetMonth.value}.xlsx`);
+          const paramSheetData = [];
+          records.value.forEach((rec, recIdx) => {
+            paramSheetData.push({ "A": `【出差日期：${rec.date}】`, "B": `事由：${rec.purpose}`, "C": "", "D": "" });
+            paramSheetData.push({ "A": "耗損 / 折舊項目", "B": "單次費用 (NT$)", "C": "壽命週期 (km)", "D": "每公里分派成本 (元/km)" });
+
+            let currentTotalLoss = 0;
+            rec.snapshotItems.forEach(p => {
+              const unitCost = p.interval > 0 ? (p.cost / p.interval) : 0;
+              currentTotalLoss += unitCost;
+              paramSheetData.push({ "A": p.name, "B": p.cost, "C": p.interval, "D": Number(unitCost.toFixed(4)) });
+            });
+
+            paramSheetData.push({ "A": "【小計：固定折舊單價】", "B": "", "C": "", "D": Number(currentTotalLoss.toFixed(4)) });
+            if (recIdx < records.value.length - 1) paramSheetData.push({ "A": "", "B": "", "C": "", "D": "" });
+          });
+
+          const ws2 = XLSX.utils.json_to_sheet(paramSheetData, { skipHeader: true });
+          ws2['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 20 }, { wch: 28 }];
+          XLSX.utils.book_append_sheet(workbook, ws2, "耗損與折舊參數明細");
+
+          XLSX.writeFile(workbook, `機車差旅費用月總表_${targetMonth.value}_${currentUser.value}.xlsx`);
+        };
+
+        const importExcel = (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const sheet1 = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+              const sheet2Data = workbook.SheetNames.length > 1 ? XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[1]], { header: "A" }) : [];
+
+              const importedRecords = sheet1
+                .filter(row => row['出差日期'] && !row['出差日期'].includes('TOTAL'))
+                .map(row => {
+                  const recDate = row['出差日期'];
+                  let snapshotItems = [];
+
+                  const startIdx = sheet2Data.findIndex(r => r.A && r.A.includes(`【出差日期：${recDate}】`));
+
+                  if (startIdx !== -1) {
+                    snapshotItems = initialItems.map((item, pIdx) => {
+                      const itemRow = sheet2Data[startIdx + 2 + pIdx];
+                      return {
+                        name: item.name,
+                        cost: itemRow ? Number(itemRow.B) || item.cost : item.cost,
+                        interval: itemRow ? Number(itemRow.C) || item.interval : item.interval
+                      };
+                    });
+                  } else {
+                    snapshotItems = JSON.parse(JSON.stringify(initialItems));
+                  }
+
+                  return {
+                    date: recDate,
+                    purpose: row['出差事由'] || '',
+                    distance: Number(row['里程(km)']) || 0,
+                    fuelType: row['汽油種類'] || '95無鉛',
+                    fuelPrice: Number(row['當週油價']) || 0,
+                    efficiency: Number(row['油耗(km/L)']) || 35,
+                    lossPerKm: Number(row['折舊單價(元/km)']) || 0,
+                    snapshotItems: snapshotItems,
+                    calcCost: Number(row['油耗與折舊成本']) || 0,
+                    parkingFee: Number(row['停車費']) || 0,
+                    finalPay: Number(row['給付金額']) || 0
+                  };
+                });
+
+              records.value = importedRecords;
+              cancelEdit();
+              alert(`成功載入 ${importedRecords.length} 筆資料！`);
+            } catch (err) {
+              alert('解析檔案失敗，請確認檔案格式！');
+            }
+          };
+          reader.readAsArrayBuffer(file);
+        };
+
+        const resetInputs = () => {
+          purpose.value = '';
+          inputDate.value = getTodayStr();
+          distance.value = 0;
+          parkingFee.value = 0;
+          fuelPreset.value = '35';
+          fuelEfficiency.value = 35.0;
+        };
+
+        const resetDefaults = () => {
+          if (!canEditSettings.value) return;
+          defaultMaintenanceItems.value = JSON.parse(JSON.stringify(initialItems));
+          saveUserSettings();
         };
 
         return {
-          activeTab, currentUser, authError, authForm, isAdmin, handleLogin, handleLogout,
-          targetMonth, purpose, inputDate, selectedFuelType, fuelPrice, fuelPreset, fuelEfficiency,
-          distance, parkingFee, editingId, defaultMaintenanceItems, googleSearchUrl, totalLossPerKm,
-          estimatedLiters, fuelSubTotal, lossSubTotal, totalCost, filteredRecords, monthTotalKm,
-          monthTotalCalcCost, monthTotalParkingFee, monthTotalAmount, onPresetChange, saveRecord,
-          editRecord, cancelEdit, deleteRecord, resetInputs, resetDefaults, saveUserSettings, exportToExcel
+          activeTab, targetMonth, purpose, inputDate, selectedFuelType, fuelPrice,
+          fuelPreset, fuelEfficiency, distance, parkingFee, records, monthTotalKm,
+          monthTotalCalcCost, monthTotalParkingFee, monthTotalAmount, googleSearchUrl,
+          defaultMaintenanceItems, totalLossPerKm, estimatedLiters, fuelSubTotal,
+          lossSubTotal, totalCost, onPresetChange, addRecord, editRecord, saveEditRecord, cancelEdit, editingIndex, deleteRecord,
+          clearMonthRecords, importExcel, exportToExcel, resetInputs, resetDefaults,
+          currentUser, isAdmin, canEditSettings, authError, authForm, handleLogin, handleLogout, saveUserSettings,
+          showAccountModal, accountForm, openAccountModal, closeAccountModal, handleUpdateAccount,
+          createForm, createNewAccount,
+          allUsersList, loadAllAccounts, toggleUserSettingPermission, inspectTargetUser, inspectUserRecords, viewUserDetail, deleteUserAccount,
+          adminPreviewMonth, filteredInspectRecords, inspectMonthTotals, exportTargetUserExcel,
+          selectedUserHashes, isAllSelected, toggleSelectAll, adminBatchMonth, exportSelectedUsersExcel,
+          showUserSettingsModal, inspectUserSettingsTargetUser, inspectUserSettingsList, openUserSettingsModal, inspectUserSettingsTotalLoss,
+          inspectUserFuelPreset, inspectUserFuelEfficiency,
+          inspectUserSettingsFuelEfficiency, inspectUserSettingsFuelPreset
         };
       }
     }).mount('#app');
